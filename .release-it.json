@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/release-it@19/schema/release-it.json",
+  "git": {
+    "commitMessage": "Release v${version}",
+    "tagName": "v${version}",
+    "requireCleanWorkingDir": true
+  },
+  "github": {
+    "release": true,
+    "draft": true,
+    "comments": {
+      "submit": false,
+      "issue": ":white_check_mark: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
+      "pr": ":white_check_mark: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
+    }
+  },
+  "npm": {
+    "publish": false
+  },
+  "hooks": {
+    "before:init": "npm test"
+  }
+}

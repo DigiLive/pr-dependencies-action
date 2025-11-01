@@ -1,27 +1,41 @@
 {
-  "dependencies": {
-    "@actions/core": "^1.2.6",
-    "@actions/github": "^4.0.0"
-  },
-  "name": "dependencies-action",
-  "description": "A GitHub Action that enforces PR dependencies",
+  "name": "pr-dependencies-action",
   "version": "1.0.0",
-  "main": "index.js",
-  "devDependencies": {
-    "jest": "^29.7.0"
-  },
-  "scripts": {
-    "test": "jest"
-  },
+  "description": "A GitHub Action that enforces PR dependencies",
+  "license": "BSD-3-Clause",
+  "private": true,
+  "author": "Ferry Cools",
+  "keywords": [
+    "pull-request",
+    "github",
+    "dependencies",
+    "workflow",
+    "automation"
+  ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gregsdennis/dependencies-action.git"
+    "url": "git+https://github.com/digilive/pr-dependencies-action.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "homepage": "https://github.com/digilive/pr-dependencies-action#readme",
   "bugs": {
-    "url": "https://github.com/gregsdennis/dependencies-action/issues"
+    "url": "https://github.com/digilive/pr-dependencies-action/issues"
   },
-  "homepage": "https://github.com/gregsdennis/dependencies-action#readme"
+  "main": "index.js",
+  "type": "module",
+  "engines": {
+    "node": "^20"
+  },
+  "scripts": {
+    "test": "jest",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run --github.release=false"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "release-it": "^19.0.5"
+  }
 }

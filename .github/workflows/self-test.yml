@@ -3,7 +3,7 @@ on: [pull_request, workflow_dispatch]
 jobs:
   self_test_job:
     runs-on: ubuntu-latest
-    name: self test
+    name: self-test
     steps:
     - uses: actions/checkout@v2
     - name: check dependencies

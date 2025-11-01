@@ -44,7 +44,7 @@ function getAllDependencies(body) {
             });
         });
     }
-    
+
     var extractableMatches = [...body.matchAll(partialLinkRegex)]
         .concat([...body.matchAll(partialUrlRegex)])
         .concat([...body.matchAll(fullUrlRegex)])
@@ -125,8 +125,10 @@ async function evaluate() {
             for (var pr of dependencyIssues) {
                 msg += `\n#${pr.number} - ${pr.title}`;
             }
+            core.setOutput('has-dependencies', true);
             core.setFailed(msg);
         } else {
+            core.setOutput('has-dependencies', false);
             core.info("\nAll dependencies have been resolved!")
         }
     } catch (error) {

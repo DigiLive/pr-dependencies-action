@@ -1,5 +1,6 @@
 name: 'PR Dependency Check'
 description: 'Verify PR dependencies are merged or closed'
+author: 'Ferry Cools'
 branding:
   icon: alert-triangle
   color: orange
@@ -10,4 +11,7 @@ inputs:
   custom-domains:
     description: 'Space-delimited list of custom domains where issues may be found'
     required: false
-    default: null
+    default: ''
+outputs:
+  has-dependencies:
+    description: 'Whether any dependencies were found'

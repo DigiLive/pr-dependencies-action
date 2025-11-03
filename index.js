@@ -1,4 +1,4 @@
-const evaluate = require('./src/pr-dependency-parser.js');
+const evaluate = require('./src/pr-dependency-checker.ts');
 
 async function run() {
     await evaluate.evaluate();

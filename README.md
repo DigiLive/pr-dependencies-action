@@ -25,7 +25,7 @@ Also supports custom domains for use with GitHub Enterprise!
 
 ## Example usage
 
-Just add the following to a `.yml` file in your `.github/workflows/` folder.
+Add the following to a `.yml` file in your `.github/workflows/` folder.
 
 ```yaml
 on:

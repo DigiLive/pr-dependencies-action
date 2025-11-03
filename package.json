@@ -20,12 +20,18 @@
   "bugs": {
     "url": "https://github.com/digilive/pr-dependencies-action/issues"
   },
-  "main": "index.js",
+  "main": "dist/index.js",
   "type": "module",
   "engines": {
-    "node": "^20"
+    "node": ">=20 <23"
   },
   "scripts": {
+    "build": "tsc",
+    "md:lint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\"",
+    "md:lint:fix": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\" --fix",
+    "ts:format": "prettier --write \"**/*.ts\"",
+    "ts:type-check": "tsc --noEmit",
+    "json:format": "prettier --write \"**/*.json\"",
     "test": "jest",
     "release": "release-it",
     "release:dry": "release-it --dry-run --github.release=false"
@@ -36,7 +42,23 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@octokit/openapi-types": "^27.0.0",
+    "@octokit/types": "^16.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.9.2",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "jest": "^30.2.0",
-    "release-it": "^19.0.5"
+    "jest-environment-jsdom": "^30.2.0",
+    "markdownlint-cli2": "^0.18.1",
+    "prettier": "^3.6.2",
+    "release-it": "^19.0.5",
+    "ts-jest": "^29.4.5",
+    "ts-loader": "^9.5.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

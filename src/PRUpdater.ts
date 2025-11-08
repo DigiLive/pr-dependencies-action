@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { isPullRequest, IssueData, PullRequestData } from './types';
+import { isPullRequest, IssueData, PullRequestData, ThrottledOctokit } from './types';
 
 const DEFAULT_DELAY_MS = 1000;
 
@@ -8,32 +8,20 @@ const DEFAULT_DELAY_MS = 1000;
  * Handles pull request updates by commenting and labeling.
  */
 class PRUpdater {
-  private readonly octokit: ReturnType<typeof github.getOctokit>;
+  private readonly octokit: ThrottledOctokit;
   private readonly context: typeof github.context;
 
   /**
    * Constructor.
    *
-   * @param {ReturnType<typeof github.getOctokit>} octokit - an authenticated Octokit instance
+   * @param {ThrottledOctokit} octokit - an authenticated Octokit instance
    * @param {typeof github.context} context - the GitHub Actions context
    */
-  constructor(octokit: ReturnType<typeof github.getOctokit>, context: typeof github.context) {
+  constructor(octokit: ThrottledOctokit, context: typeof github.context) {
     this.octokit = octokit;
     this.context = context;
 
     this.validateContext();
-  }
-
-  /**
-   * Delays execution of the next instruction by the given amount of time.
-   *
-   * Mainly used to avoid API rate limiting.
-   *
-   * @param {number} [ms=DEFAULT_DELAY_MS] - The amount of time to delay in milliseconds.
-   * @returns {Promise<void>} - A promise that resolves when the delay is complete.
-   */
-  async delay(ms: number = DEFAULT_DELAY_MS): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -57,7 +45,6 @@ class PRUpdater {
       const newComment = this.createCommentBody(dependencies);
 
       // Get PR comments.
-      await this.delay();
       const { data: comments } = await this.octokit.rest.issues.listComments({
         owner,
         repo,
@@ -141,7 +128,6 @@ class PRUpdater {
     core.info('  Creating PR comment...');
 
     try {
-      await this.delay();
       await this.octokit.rest.issues.createComment({
         owner,
         repo,
@@ -167,7 +153,6 @@ class PRUpdater {
     core.info('  Adding blocked label...');
 
     try {
-      await this.delay();
       await this.octokit.rest.issues.addLabels({
         owner,
         repo,
@@ -194,7 +179,6 @@ class PRUpdater {
     core.info('  Removing blocked label...');
 
     try {
-      await this.delay();
       await this.octokit.rest.issues.removeLabel({
         owner,
         repo,

@@ -8,8 +8,12 @@ runs:
   using: 'node20'
   main: 'dist/index.js'
 inputs:
+  key-phrases:
+    description: 'Pipe-separated list of key phrases to identify dependency declarations'
+    required: false
+    default: 'depends on|blocked by'
   custom-domains:
-    description: 'Space-delimited list of custom domains where issues may be found'
+    description: 'Pipe-separated list of additional GitHub server domains where referenced issues/PRs might be hosted.
     required: false
     default: ''
 outputs:

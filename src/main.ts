@@ -5,6 +5,7 @@ import { PRDependencyChecker } from './PRDependencyChecker';
 import { throttlingConfig } from './config';
 
 const ThrottledOctokit = OctoKitCore.plugin(throttling);
+const apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
 const myToken = process.env.GITHUB_TOKEN;
 
 /**
@@ -21,13 +22,18 @@ const myToken = process.env.GITHUB_TOKEN;
  */
 async function run(): Promise<void> {
   try {
-    core.info('Initializing the action...');
-    if (!myToken) {
-      throw new Error('GITHUB_TOKEN environment variable is not set.');
+    core.info('Initializing the action...\n');
+
+    if (!myToken || !apiUrl) {
+      throw new Error('GITHUB_TOKEN or GITHUB_API_URL environment variable is not set.');
     }
+
+    core.notice(`  Using GitHub Enterprise instance at: ${new URL(apiUrl).hostname}\n`);
+    core.debug(`  API URL: ${apiUrl}\n`);
 
     const octokit = new ThrottledOctokit({
       auth: myToken,
+      baseUrl: apiUrl,
       throttle: throttlingConfig,
     });
 

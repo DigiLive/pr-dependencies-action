@@ -2,8 +2,6 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { isPullRequest, IssueData, PullRequestData, ThrottledOctokit } from './types';
 
-const DEFAULT_DELAY_MS = 1000;
-
 /**
  * Handles pull request updates by commenting and labeling.
  */

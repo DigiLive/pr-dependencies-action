@@ -6,16 +6,12 @@ branding:
   color: orange
 runs:
   using: 'node20'
-  main: 'dist/index.js'
+  main: 'dist/main.js'
 inputs:
   key-phrases:
     description: 'Pipe-separated list of key phrases to identify dependency declarations'
     required: false
     default: 'depends on|blocked by'
-  custom-domains:
-    description: 'Pipe-separated list of additional GitHub server domains where referenced issues/PRs might be hosted.
-    required: false
-    default: ''
 outputs:
   has-dependencies:
     description: 'Whether any dependencies were found'

@@ -2,6 +2,17 @@ import { getDependencyTags } from '../src/dependency-extractor';
 import { DependencyTag } from '../src/types';
 import * as config from '../src/config';
 
+const ORIGINAL_ENV = process.env;
+
+beforeEach(() => {
+  jest.resetModules();
+  process.env = { ...ORIGINAL_ENV };
+});
+
+afterEach(() => {
+  process.env = ORIGINAL_ENV;
+});
+
 jest.mock('@actions/github', () => ({
   context: {
     repo: {
@@ -128,21 +139,15 @@ https://domain.com/owner/repo/pull/402
     expect(result).toHaveLength(0);
   });
 
-  describe('with custom configuration', () => {
-    describe('With a custom domain', () => {
+  describe('with a custom environment/inputs', () => {
+    describe('with a custom server URL', () => {
+      process.env.GITHUB_SERVER_URL = 'https://custom-domain.com';
+
       const customDomainBody = `
     Depends on:
     [Custom PR](https://custom-domain.com/custom-org/custom-repo/pull/123)
     Blocked by: #456
     `;
-
-      beforeAll(() => {
-        jest.spyOn(config, 'getDomains').mockReturnValue('github.com|custom-domain.com');
-      });
-
-      afterAll(() => {
-        jest.restoreAllMocks();
-      });
 
       it('should handle custom domain URLs', () => {
         const result = getDependencyTags(customDomainBody);

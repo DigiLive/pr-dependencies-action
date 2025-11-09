@@ -1,7 +1,9 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { DependencyTag } from './types';
-import { getDomains, getKeyPhrases, getIssueTypes } from './config';
+import { getIssueTypes, getKeyPhrases } from './config';
+
+const hostName = new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
 
 /**
  * Pre-compiled regex patterns for different types of dependency references.
@@ -11,15 +13,14 @@ import { getDomains, getKeyPhrases, getIssueTypes } from './config';
  * @property {RegExp} partialLink - Matches `owner/repo#123` format.
  * @property {RegExp} partialUrl - Matches `owner/repo/issues/123` format without a domain.
  * @property {RegExp} fullUrl - Matches full GitHub URLs.
- * @property {RegExp} markdown - Matches Markdown style links like [text](url).
+ * @property {RegExp} markdown - Matches Markdown style links like [text](URL).
  */
 const REGEX_PATTERNS: Record<string, RegExp> = {
   quickLink: /(?:^|\s|\D)#(\d+)(?=\s|#|$)(?<!\S[\w-]+\/[\w-]+#\d+)/g,
   partialLink: /(?:^|\s)([\w-]+\/[\w-]+#\d+)(?=\s|#|$)/g,
   partialUrl: new RegExp(`(?:^|\\s)([\\w-]+/[\\w-]+/(?:${getIssueTypes()})/\\d+)(?=\\s|$)`, 'g'),
-
   fullUrl: new RegExp(
-    `(?:^|\\s)(https?:\\/\\/(?:${getDomains()})\\/[\\w-]+\\/[\\w-]+\\/(?:${getIssueTypes()})\\/\\d+)(?=\\s|$)`,
+    `(?:^|\\s)(https?:\\/\\/${hostName}\\/[\\w-]+\\/[\\w-]+\\/(?:${getIssueTypes()})\\/\\d+)(?=\\s|$)`,
     'g'
   ),
   markdown: /\[.*?]\((.*?)\)/g,
@@ -104,7 +105,7 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
  * The extracted URLs are returned as an array of strings.
  *
  * @param {string} text - The string to search for dependency URLs.
- * @param {RegExp} pattern - The url regex pattern to match against the input string.
+ * @param {RegExp} pattern - The URL regex pattern to match against the input string.
  * @returns {string[]} An array of dependency URLs.
  */
 function extractDependencyUrls(text: string, pattern: RegExp): string[] {

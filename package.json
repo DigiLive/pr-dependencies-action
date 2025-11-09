@@ -26,15 +26,20 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "build": "tsc",
     "md:lint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\"",
     "md:lint:fix": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\" --fix",
     "ts:format": "prettier --write \"**/*.ts\"",
     "ts:type-check": "tsc --noEmit",
+    "ts:lint": "eslint . --ext .ts",
     "json:format": "prettier --write \"**/*.json\"",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:debug": "cross-env DEBUG_TEST=true jest",
     "release": "release-it",
-    "release:dry": "release-it --dry-run --github.release=false"
+    "release:dry": "release-it --dry-run --github.release=false",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prepare": "npm run clean && npm run build"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -42,12 +47,14 @@
     "@octokit/plugin-throttling": "^11.0.3"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@jest/globals": "^30.2.0",
     "@octokit/types": "^16.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.9.2",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
+    "cross-env": "^10.1.0",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -56,6 +63,7 @@
     "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.6.2",
     "release-it": "^19.0.5",
+    "rimraf": "^6.1.0",
     "ts-jest": "^29.4.5",
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",

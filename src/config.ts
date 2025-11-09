@@ -1,7 +1,8 @@
 import * as core from '@actions/core';
 import { ThrottlingOptions } from '@octokit/plugin-throttling';
+import { RequestOptions } from '@octokit/types';
+import { Octokit } from '@octokit/core';
 
-const CUSTOM_DOMAINS: string = core.getInput('custom-domains');
 const KEY_PHRASES: string = core.getInput('key-phrases') || 'depends on|blocked by';
 
 /**
@@ -15,7 +16,7 @@ const KEY_PHRASES: string = core.getInput('key-phrases') || 'depends on|blocked 
  * @see {@link https://github.com/octokit/plugin-throttling.js#options} for more details.
  */
 export const throttlingConfig: ThrottlingOptions = {
-  onRateLimit: (retryAfter: number, options: any, octokit: any, retryCount: number) => {
+  onRateLimit: (retryAfter: number, options: RequestOptions, octokit: Octokit, retryCount: number) => {
     core.warning(
       `Primary rate limit hit. Retrying ${options.method} ${options.url} after ${retryAfter} seconds (Attempt ${retryCount + 1}).`
     );
@@ -23,7 +24,7 @@ export const throttlingConfig: ThrottlingOptions = {
     return retryCount < 3;
   },
 
-  onSecondaryRateLimit: (retryAfter: number, options: any, octokit: any, retryCount: number) => {
+  onSecondaryRateLimit: (retryAfter: number, options: RequestOptions, octokit: Octokit, retryCount: number) => {
     core.warning(
       `Secondary rate limit hit. Retrying ${options.method} ${options.url} after ${retryAfter} seconds (Attempt ${retryCount + 1}).`
     );
@@ -31,15 +32,6 @@ export const throttlingConfig: ThrottlingOptions = {
     return retryCount < 3;
   },
 };
-
-/**
- * Gets a regex-compatible string of supported domains for dependency URLs.
- * It always includes 'github.com'.
- *
- * @returns {string} A regex string containing the domains separated by pipes.
- * @example 'github\.com|example\.com'
- */
-export const getDomains = createMemoizedRegexString(`github.com${CUSTOM_DOMAINS ? '|' + CUSTOM_DOMAINS : ''}`);
 
 /**
  * Gets a regex-compatible string of key phrases used to identify dependency declarations.

@@ -77,11 +77,10 @@ export default defineConfig([
       'no-console': 'off',
     },
   },
-  // Test files configuration
-  {
-    files: ['**/*.test.ts'],
-    plugins: {
-      '@typescript-eslint': typescriptEslint,
+
+  // 6. Prettier Configuration: MUST BE LAST!
+  // Uses 'prettier' config to DISABLE conflicting formatting rules.
+  ...compat.extends('prettier'),
     },
     languageOptions: {
       globals: {

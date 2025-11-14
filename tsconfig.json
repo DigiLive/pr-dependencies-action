@@ -1,20 +1,41 @@
+// tsconfig.json - MAIN CONFIG: Used to compile source code (src)
+
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "node",
+    // === MODULE AND LANGUAGE TARGET ===
+    // Target modern JS features supported by Node 20+
+    "target": "ES2022",
+    // CRITICAL for ESM: Use NodeNext for native module resolution and output
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // Ensure compatibility for importing CommonJS packages
     "esModuleInterop": true,
+    "isolatedModules": true,
+
+    // === TYPE CHECKING AND SAFETY ===
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+
+    // === OUTPUT AND FILE HANDLING ===
     "outDir": "./dist",
-    "rootDir": "./src",
     "declaration": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "types": ["node", "jest"]
-    "types": ["node"]
+    "types": ["node", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
+
+  // === FILES TO INCLUDE/EXCLUDE ===
+  // ONLY include source files for compilation
   "include": ["src/**/*"],
   "exclude": [
+    "node_modules",
+    "dist",
+    "eslint.config.mjs",
+    "**/*.test.ts" // Exclude all test files from compilation
+  ]
 }

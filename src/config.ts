@@ -47,7 +47,7 @@ export const getKeyPhrases = createMemoizedRegexString(KEY_PHRASES);
  * @returns {string} A regex string that matches either 'issues' or 'pull'.
  * @example 'issues|pull'
  */
-export const getIssueTypes = createMemoizedRegexString('issues|pull');
+export const getIssueTypes: () => string = createMemoizedRegexString('issues|pull');
 
 /**
  * Creates a memoized function that escapes all special regex characters except the pipe (|) from the given string.
@@ -59,6 +59,7 @@ export const getIssueTypes = createMemoizedRegexString('issues|pull');
  */
 function createMemoizedRegexString(input: string): () => string {
   let cached: string | null = null;
+
   return () => {
     if (!cached) {
       // Escape all special regex characters except the pipe (|)

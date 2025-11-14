@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import { FlatCompat } from '@eslint/eslintrc';
+import prettierConfig from 'eslint-config-prettier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,93 +16,110 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
-// List of config files that should use JavaScript rules
-const configFiles = ['eslint.config.mjs', 'jest.config.ts', 'jest.setup.ts'];
-
 export default defineConfig([
+  // 1. Base JavaScript rules (Applies to all files first).
+  js.configs.recommended,
+
+  // 2. Global Ignores.
   globalIgnores(['**/dist/', '**/node_modules/']),
 
-  // JavaScript configuration (applies to all .js and .mjs files)
+  // 3. JavaScript files.
   {
     files: ['**/*.js', '**/*.mjs'],
-    ignores: configFiles, // Exclude config files from JS rules
     languageOptions: {
-      globals: {
-        ...globals.node,
-      },
+      globals: { ...globals.node },
       sourceType: 'module',
       ecmaVersion: 2020,
     },
   },
 
-  // TypeScript configuration (applies to .ts files except config files)
+  // 4. TypeScript files (Applies recommended rules, type-checked).
   {
-    files: ['**/*.ts', '!**/*.test.ts'],
-    ignores: configFiles, // Exclude config files from TS rules
-    plugins: {
-      '@typescript-eslint': typescriptEslint,
-    },
+    files: ['**/*.ts'],
+    ignores: ['eslint.config.mjs'],
+    plugins: { '@typescript-eslint': typescriptEslint },
     languageOptions: {
-      globals: {
-        ...globals.node,
-      },
+      globals: { ...globals.node },
       parser: tsParser,
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json'],
         tsconfigRootDir: __dirname,
         ecmaVersion: 2020,
         sourceType: 'module',
       },
     },
     rules: {
+      // Apply ALL recommended rules for a complete TS setup.
+      ...typescriptEslint.configs['recommended'].rules,
+      ...typescriptEslint.configs['recommended-type-checked'].rules,
+
+      // Custom overrides.
       '@typescript-eslint/no-empty-function': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+
+      // Disable base JS rules to let TS rules handle them (critical for TS files)
       'no-console': 'off',
       'no-empty-function': 'off',
       'no-unused-vars': 'off',
+      'no-shadow': 'off',
+      '@typescript-eslint/no-shadow': 'error', // Add the TS equivalent
     },
   },
 
-  // Configuration for config files (use basic JavaScript rules)
+  // 5. TypeScript Test files.
   {
-    files: configFiles,
+    files: ['test/**/*.test.ts'],
+    plugins: {
+      '@typescript-eslint': typescriptEslint,
+      vitest: {},
+    },
     languageOptions: {
       globals: {
         ...globals.node,
+        ...globals.jest, // Vitest uses similar globals to Jest
       },
+      parser: tsParser,
+      parserOptions: {
+        project: ['./tsconfig.test.json'],
+        tsconfigRootDir: __dirname,
+        ecmaVersion: 2020,
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      'vitest/consistent-test-it': ['error', { fn: 'it' }],
+      'vitest/no-identical-title': 'error',
+      'vitest/valid-expect': 'error',
+      'vitest/no-focused-tests': 'warn',
+      'vitest/no-conditional-tests': 'warn',
+      'vitest/no-conditional-in-test': 'warn',
+      'vitest/no-conditional-expect': 'error',
+      'vitest/no-skipped-tests': 'warn',
+    },
+  },
+
+  // 6. Configuration files.
+  {
+    files: ['*.config.{js,ts}'],
+    rules: {
+      'import/no-default-export': 'off', // Allow default exports in config files
+    },
+  },
+
+  // 7. ESLint Configuration Overrides.
+  {
+    files: ['eslint.config.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
       ecmaVersion: 2020,
       sourceType: 'module',
     },
     rules: {
-      // Basic rules for config files
       'no-console': 'off',
     },
   },
 
-  // 6. Prettier Configuration: MUST BE LAST!
+  // 8. Prettier Configuration: MUST BE LAST!
   // Uses 'prettier' config to DISABLE conflicting formatting rules.
-  ...compat.extends('prettier'),
-    },
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-      },
-      parser: tsParser,
-      parserOptions: {
-        project: './tsconfig.test.json',
-        tsconfigRootDir: __dirname,
-        sourceType: 'module',
-        ecmaVersion: 2020,
-      },
-    },
-    rules: {
-      // You can customize test-specific rules here
-      '@typescript-eslint/no-empty-function': 'off',
-      'no-empty-function': 'off',
-    },
-  },
-
-  // Apply shared rules from extends
-  ...compat.extends('eslint:recommended', 'plugin:@typescript-eslint/recommended', 'plugin:prettier/recommended'),
+  prettierConfig,
 ]);

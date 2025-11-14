@@ -36,7 +36,7 @@ export type PullRequestFromIssueData = IssueData & {
  * This type combines the base OctoKitCore with the throttling plugin's type,
  * providing rate limiting and retry functionality for GitHub API requests.
  */
-export type ThrottledOctokit = OctoKitCore & ReturnType<typeof throttling>;
+export type ThrottledOctokit = typeof OctoKitCore & ReturnType<typeof throttling>;
 
 /**
  * Type Guard: Checks if an IssueData object is actually a Pull Request.

@@ -1,21 +1,24 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { isPullRequest, IssueData, PullRequestData, ThrottledOctokit } from './types';
+import { isPullRequest, IssueData, PullRequestData } from './types.js';
+import { Octokit } from '@octokit/rest';
 
 /**
  * Handles pull request updates by commenting and labeling.
  */
 class PRUpdater {
-  private readonly octokit: ThrottledOctokit;
+  private readonly octokit: Octokit;
   private readonly context: typeof github.context;
 
   /**
-   * Constructor.
+   * Initializes a new PRUpdater instance.
    *
-   * @param {ThrottledOctokit} octokit - an authenticated Octokit instance
-   * @param {typeof github.context} context - the GitHub Actions context
+   * @param {Octokit} octokit - an Octokit instance.
+   * @param {typeof github.context} context - the GitHub context for the action.
+   *
+   * @throws {Error} If the context is missing required information.
    */
-  constructor(octokit: ThrottledOctokit, context: typeof github.context) {
+  constructor(octokit: Octokit, context: typeof github.context) {
     this.octokit = octokit;
     this.context = context;
 

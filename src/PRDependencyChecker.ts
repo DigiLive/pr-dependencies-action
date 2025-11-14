@@ -1,8 +1,9 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { PRUpdater } from './PRUpdater';
-import { getDependencyTags } from './dependency-extractor';
-import { DependencyTag, IssueData, PullRequestData, ThrottledOctokit } from './types';
+import { PRUpdater } from './PRUpdater.js';
+import { getDependencyTags } from './dependency-extractor.js';
+import { DependencyTag, IssueData, PullRequestData } from './types.js';
+import { Octokit } from '@octokit/rest';
 
 /**
  * A class that checks and manages pull request dependencies.
@@ -18,10 +19,18 @@ import { DependencyTag, IssueData, PullRequestData, ThrottledOctokit } from './t
  * await checker.evaluate();
  */
 export class PRDependencyChecker {
-  private readonly octokit: ThrottledOctokit;
+  private readonly octokit: Octokit;
   private indent: number = 0;
 
-  constructor(octokit: ThrottledOctokit) {
+  /**
+   * Creates a new instance of the PRDependencyChecker class.
+   *
+   * This constructor accepts an Octokit instance as a parameter.
+   * The instance is used to interact with the GitHub API.
+   *
+   * @param {Octokit} octokit - the Octokit instance to use.
+   */
+  constructor(octokit: Octokit) {
     this.octokit = octokit;
   }
 
@@ -37,37 +46,38 @@ export class PRDependencyChecker {
    */
   async evaluate(): Promise<void> {
     try {
-      core.info('Checking for dependencies...\n');
+      core.info('Checking for dependencies...');
 
       const pullRequest = await this.fetchPullRequest();
 
       if (!pullRequest.body) {
-        core.warning(`${this.getIndent()}Stopping: Pull Request #${pullRequest.number} has an empty body.\n`);
+        core.warning(`Stopping: Pull Request #${pullRequest.number} has an empty body.`);
         return;
       }
 
-      core.info(`${this.getIndent()}Extracting dependencies from the PR body...\n`);
+      this.indent++;
+      core.info(`${this.getIndent()}Extracting dependencies from the PR body...`);
       const dependencies = await this.analyzeDependencies(pullRequest.body);
 
       if (dependencies.length > 0) {
         const prUpdater = new PRUpdater(this.octokit, github.context);
-        let result = `\n\nThe following dependencies need to be resolved before Pull Request #${pullRequest.number} can be merged:\n\n`;
+        let result = `The following dependencies need to be resolved before Pull Request #${pullRequest.number} can be merged:\n\n`;
 
         for (const dependency of dependencies) {
           result += `  #${dependency.number} - ${dependency.title}\n`;
         }
 
         await prUpdater.updatePR(pullRequest, dependencies);
-        core.setFailed(result);
+        core.setFailed(result.trimEnd());
         core.setOutput('has-dependencies', true);
       } else {
-        core.notice('All dependencies have been resolved!\n');
+        core.notice('All dependencies have been resolved!');
         core.setOutput('has-dependencies', false);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.setFailed(`${this.getIndent()}Dependency check failed: ${errorMessage}`);
-    } finally {
+      core.setFailed(`Dependency check failed: ${errorMessage}`);
+    }finally {
       this.indent--;
     }
   }
@@ -89,6 +99,7 @@ export class PRDependencyChecker {
    * If the fetch is successful, it will return the pull request data as a Promise.
    *
    * @returns {Promise<PullRequestData>} A promise that resolves with the pull request data.
+   * @throws {Error} If the pull request cannot be fetched.
    */
   private async fetchPullRequest(): Promise<PullRequestData> {
     this.indent++;
@@ -101,6 +112,8 @@ export class PRDependencyChecker {
         pull_number: github.context.issue.number,
       });
       return data as PullRequestData;
+    } catch (error) {
+      throw Error(`Failed to fetch Pull Request #${github.context.issue.number}.`);
     } finally {
       this.indent--;
     }
@@ -118,7 +131,7 @@ export class PRDependencyChecker {
    */
   private async fetchDependency(tag: DependencyTag): Promise<IssueData> {
     this.indent++;
-    core.debug(`${this.getIndent()}Fetching PR/Issue #${tag.number}\n`);
+    core.debug(`Fetching PR/Issue #${tag.number}`);
 
     try {
       const response = await this.octokit.rest.issues.get({
@@ -150,8 +163,7 @@ export class PRDependencyChecker {
     const tags = getDependencyTags(text);
     const dependencies: IssueData[] = [];
 
-    this.indent++;
-    core.info(`${this.getIndent()}Analyzing ${tags.length} dependencies...\n`);
+    core.info(`${this.getIndent()}Analyzing ${tags.length} dependencies...`);
     this.indent++;
 
     try {
@@ -159,13 +171,13 @@ export class PRDependencyChecker {
         try {
           const dependency = await this.fetchDependency(tag);
 
-          core.debug(`${this.getIndent()}Pull Request/Issue #${tag.number} is ${dependency.state}.\n`);
+          core.debug(`Pull Request/Issue #${tag.number} is ${dependency.state}.`);
 
           if (dependency && dependency.state !== 'closed') {
             dependencies.push(dependency);
           }
         } catch (error) {
-          core.warning(`${this.getIndent()}${(error as Error).message} You'll need to verify it manually.\n`);
+          core.warning(`Error while fetching Pull Request/Issue #${tag.number}. You'll need to verify it manually.`);
         }
       }
 

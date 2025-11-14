@@ -1,41 +1,63 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { DependencyTag } from './types';
-import { getIssueTypes, getKeyPhrases } from './config';
-
-const hostName = new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
+import { DependencyTag } from './types.js';
+import { getIssueTypes, getKeyPhrases } from './config.js';
 
 /**
- * Pre-compiled regex patterns for different types of dependency references.
+ * Returns the hostname of the GitHub API server.
  *
- * @type {Record<string, RegExp>}
- * @property {RegExp} quickLink - Matches simple issue references like "#123".
- * @property {RegExp} partialLink - Matches `owner/repo#123` format.
- * @property {RegExp} partialUrl - Matches `owner/repo/issues/123` format without a domain.
- * @property {RegExp} fullUrl - Matches full GitHub URLs.
- * @property {RegExp} markdown - Matches Markdown style links like [text](URL).
+ * If `GITHUB_SERVER_URL` is set, it will use that as the base URL.
+ * Otherwise, it defaults to 'https://github.com'.
+ *
+ * @returns {string} The hostname of the GitHub API server.
  */
-const REGEX_PATTERNS: Record<string, RegExp> = {
-  quickLink: /(?:^|\s|\D)#(\d+)(?=\s|#|$)(?<!\S[\w-]+\/[\w-]+#\d+)/g,
-  partialLink: /(?:^|\s)([\w-]+\/[\w-]+#\d+)(?=\s|#|$)/g,
-  partialUrl: new RegExp(`(?:^|\\s)([\\w-]+/[\\w-]+/(?:${getIssueTypes()})/\\d+)(?=\\s|$)`, 'g'),
-  fullUrl: new RegExp(
-    `(?:^|\\s)(https?:\\/\\/${hostName}\\/[\\w-]+\\/[\\w-]+\\/(?:${getIssueTypes()})\\/\\d+)(?=\\s|$)`,
-    'g'
-  ),
-  markdown: /\[.*?]\((.*?)\)/g,
-} as const;
+const getHostName = () => new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
 
+/**
+ * Returns an object containing regex patterns for extracting dependency tags from a string.
+ *
+ * The returned object contains the following properties:
+ * - `quickLink`: A pattern for matching GitHub quick links in the format of `#123`.
+ * - `partialLink`: A pattern for matching GitHub partial links in the format of `owner/repo#123`.
+ * - `partialUrl`: A pattern for matching GitHub partial URLs in the format of `owner/repo/issues/123`.
+ * - `fullUrl`: A pattern for matching GitHub full URLs in the format of `https://github.com/owner/repo/issues/123`.
+ * - `markdown`: A pattern for matching Markdown links in the format of `[text](url)`.
+ *
+ * @returns {Record<string, RegExp>} An object containing the regex patterns.
+ */
+const getRegexPatterns = ():Record<string, RegExp> =>
+  ({
+    quickLink: /(?:^|\s|\D)(#\d+)(?=\s|#|$)(?<!\S[\w-]+\/[\w-]+#\d+)/g,
+    partialLink: /(?:^|\s)([\w-]+\/[\w-]+#\d+)(?=\s|#|$)/g,
+    partialUrl: new RegExp(`(?:^|\\s)([\\w-]+/[\\w-]+/(?:${getIssueTypes()})/\\d+)(?=\\s|$)`, 'g'),
+    fullUrl: new RegExp(
+      `(?:^|\\s)(https?:\\/\\/${getHostName()}\\/[\\w-]+\\/[\\w-]+\\/(?:${getIssueTypes()})\\/\\d+)(?=\\s|$)`,
+      'g'
+    ),
+    markdown: /\[.*?]\((.*?)\)/g,
+  }) as const;
+
+/**
+ * Extracts dependency tags from a given string.
+ *
+ * This function takes a string and searches for dependency tags using various regex patterns.
+ * It returns an array of DependencyTag objects containing the extracted owner, repo, and number.
+ *
+ * If the input string is empty, it returns an empty array.
+ *
+ * @param {string} body - The string to search for dependency tags.
+ * @returns {DependencyTag[]} An array of DependencyTag objects.
+ */
 export function getDependencyTags(body: string): DependencyTag[] {
   if (!body) return [];
 
-  // Process other types of matches
+  // Process other types of matches. Markdown links are processed first to avoid false positives.
   const dependencyUrls = [
-    ...extractDependencyUrls(body, REGEX_PATTERNS.markdown),
-    ...extractDependencyUrls(body, REGEX_PATTERNS.quickLink),
-    ...extractDependencyUrls(body, REGEX_PATTERNS.partialLink),
-    ...extractDependencyUrls(body, REGEX_PATTERNS.partialUrl),
-    ...extractDependencyUrls(body, REGEX_PATTERNS.fullUrl),
+    ...extractDependencyUrls(body, getRegexPatterns().markdown),
+    ...extractDependencyUrls(body, getRegexPatterns().quickLink),
+    ...extractDependencyUrls(body, getRegexPatterns().partialLink),
+    ...extractDependencyUrls(body, getRegexPatterns().partialUrl),
+    ...extractDependencyUrls(body, getRegexPatterns().fullUrl),
   ];
 
   return compileDependencyTags(dependencyUrls);
@@ -55,11 +77,19 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
 
   const allTags = dependencyUrls.flatMap((url) => {
     try {
-      const match = url.match(
-        new RegExp(`^(?:https?://[^/]+/)?([^/]+)/([^/#]+)(?:/(?:${getIssueTypes()})/|#)(\\d+)$`, 'i')
-      );
-
+      const match = url.match(/^(?:https?:\/\/[^/]+\/)?([^/]+)\/([^/#]+)(?:\/(?:pull|issues)\/|#)(\d+)|#?(\d+)$/i);
+      //FIXME: Replace pull|issues with getIssueTypes()
       if (match) {
+        if (match[4]) {
+          return [
+            {
+              owner: github.context.repo.owner,
+              repo: github.context.repo.repo,
+              number: parseInt(match[4], 10),
+            },
+          ];
+        }
+
         return [
           {
             owner: match[1],
@@ -69,15 +99,10 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
         ];
       }
 
-      const number = parseInt(url, 10);
-      if (!isNaN(number)) {
-        return [{ ...github.context.repo, number }];
-      }
-
-      core.warning(`Skipping invalid dependency URL format: ${url}`);
+      core.warning(`  Skipping invalid dependency URL format: ${url}`);
       return [];
     } catch (error) {
-      core.warning(`Error processing dependency URL '${url}': ${(error as Error).message}`);
+      core.warning(`  Error processing dependency URL '${url}': ${(error as Error).message}`);
       return [];
     }
   });
@@ -91,7 +116,7 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
     }
   }
 
-  core.debug(`Found ${uniqueTags.size} unique dependency tags.`);
+  core.debug(`  Found ${uniqueTags.size} unique dependency tags.`);
 
   return Array.from(uniqueTags.values());
 }
@@ -141,7 +166,7 @@ function extractDependencyUrls(text: string, pattern: RegExp): string[] {
     }
   }
 
-  core.debug(`Extracted ${dependencyUrls.length} dependency URLs.`);
+  core.debug(`  Extracted ${dependencyUrls.length} dependency URLs.`);
 
   return dependencyUrls;
 }

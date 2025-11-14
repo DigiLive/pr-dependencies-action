@@ -372,8 +372,9 @@ $RECYCLE.BIN/
 /dist/      # Already generally covered in ### Node ###
 /build/
 
-# Jest/Istanbul Test Coverage Reports (Anchored to repository root)
+# Jest/Vitest Test Coverage Reports (Anchored to repository root)
 /coverage/  # Already generally covered in ### Node ###
+/.vitest/
 
 # VS Code User Settings
 /.vscode/

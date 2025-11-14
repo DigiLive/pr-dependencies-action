@@ -1,8 +1,8 @@
 import * as core from '@actions/core';
 import { Octokit as OctoKitCore } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';
-import { PRDependencyChecker } from './PRDependencyChecker';
-import { throttlingConfig } from './config';
+import { PRDependencyChecker } from './PRDependencyChecker.js';
+import { throttlingConfig } from './config.js';
 
 const ThrottledOctokit = OctoKitCore.plugin(throttling);
 const apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';

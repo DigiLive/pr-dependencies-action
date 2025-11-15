@@ -5,6 +5,14 @@ import { Octokit } from '@octokit/core';
 
 const KEY_PHRASES: string = core.getInput('key-phrases') || 'depends on|blocked by';
 
+
+/**
+ * The label to be applied to the pull request when there are still open dependencies.
+ *
+ * @default 'blocked'
+ */
+export const PR_LABEL: string = core.getInput('label') || 'blocked';
+
 /**
  * Configuration options for request throttling when making API calls to GitHub.
  *

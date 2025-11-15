@@ -12,6 +12,10 @@ inputs:
     description: 'Pipe-separated list of key phrases to identify dependency declarations'
     required: false
     default: 'depends on|blocked by'
+  label:
+    description: 'Label to add to PR when dependencies are found'
+    required: false
+    default: 'blocked'
 outputs:
   has-dependencies:
     description: 'Whether any dependencies were found'

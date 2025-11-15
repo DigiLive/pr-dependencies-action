@@ -67,7 +67,7 @@ export class PRDependencyChecker {
           result += `  #${dependency.number} - ${dependency.title}\n`;
         }
 
-        await prUpdater.updatePR(pullRequest, dependencies);
+        await prUpdater.updatePR(dependencies);
         core.setFailed(result.trimEnd());
         core.setOutput('has-dependencies', true);
       } else {

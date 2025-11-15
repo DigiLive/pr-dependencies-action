@@ -1,7 +1,8 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { isPullRequest, IssueData, PullRequestData } from './types.js';
+import { isPullRequest, IssueData } from './types.js';
 import { Octokit } from '@octokit/rest';
+import { PR_LABEL } from '@/config.js';
 
 /**
  * Handles pull request updates by commenting and labeling.
@@ -28,24 +29,23 @@ class PRUpdater {
   /**
    * Updates a pull request with dependency information.
    *
-   * Adds a comment when the PR's dependencies have been changed.
-   * While dependencies are still open, the PR is labeled as blocked.
+   * Adds a comment when the Pull Request's dependencies have been changed.
+   * While dependencies are still open, the Pull Request is labeled as blocked.
    *
-   * @param {PullRequestData} pullRequest - the pull request to update.
    * @param {IssueData[]} dependencies - an array of dependencies.
    * @returns {Promise<void>} - a promise that resolves when the update is complete.
    */
-  async updatePR(pullRequest: PullRequestData, dependencies: IssueData[]): Promise<void> {
+  async updatePR(dependencies: IssueData[]): Promise<void> {
     const { owner, repo } = this.context.repo;
     const { number: issue_number } = this.context.issue;
 
-    core.info(`Updating PR #${issue_number} with ${dependencies?.length || 0} dependencies`);
+    core.info(`Updating Pull Request #${issue_number} with ${dependencies?.length || 0} dependencies`);
 
     try {
       const hasDependencies = dependencies?.length > 0;
       const newComment = this.createCommentBody(dependencies);
 
-      // Get PR comments.
+      // Get Pull Request comments.
       const { data: comments } = await this.octokit.rest.issues.listComments({
         owner,
         repo,
@@ -62,23 +62,33 @@ class PRUpdater {
 
       // Only add a new comment if there isn't already an identical one
       if (!lastBotComment || lastBotComment.body !== newComment) {
+        core.info('  The dependencies have been changed. Adding a comment...');
+
         if (hasDependencies) {
           await this.createComment(newComment);
           await this.addBlockedLabel();
         } else {
+          core.notice('All dependencies have been resolved.');
+
           // Only add a comment if there was a previous blocking comment
           if (lastBotComment) {
             await this.createComment(newComment);
           }
           await this.removeBlockedLabel();
         }
-      } else if (hasDependencies) {
-        await this.addBlockedLabel();
       } else {
-        await this.removeBlockedLabel();
+        core.info('  The dependencies have not been changed.');
+
+        if (hasDependencies) {
+          await this.addBlockedLabel();
+        } else {
+          await this.removeBlockedLabel();
+        }
       }
+
+      core.info(`Updating Pull Request #${issue_number} successfully finished.`);
     } catch (error) {
-      core.error(`  Error updating PR: ${(error as Error).message}`);
+      core.error('Error updating Pull Request.');
       throw error;
     }
   }
@@ -92,16 +102,16 @@ class PRUpdater {
    * @param {IssueData[]} dependencies - an array of dependencies.
    * @returns {string} - a comment-body.
    */
-  createCommentBody(dependencies: IssueData[]): string {
+  private createCommentBody(dependencies: IssueData[]): string {
     const signature = '<!-- pr-dependencies-action -->';
 
     let comment = `${signature}\n`;
 
     if (!dependencies?.length) {
-      comment += '## ✅ All Dependencies Resolved\n\nThis PR has no blocking dependencies.';
+      comment += '## ✅ All Dependencies Resolved\n\nThis Pull Request has no blocking dependencies.';
     } else {
       comment += '## ⚠️ Blocking Dependencies Found\n\n';
-      comment += 'This PR cannot be merged until the following dependencies are resolved:\n\n';
+      comment += 'This Pull Request cannot be merged until the following dependencies are resolved:\n\n';
 
       dependencies.forEach((dependency) => {
         const dependencyType = isPullRequest(dependency) ? 'PR' : 'Issue';
@@ -117,16 +127,16 @@ class PRUpdater {
   }
 
   /**
-   * Creates a comment on the PR with the given body.
+   * Creates a comment on the Pull Request with the given body.
    *
    * @param {string} comment - the body of the comment.
    * @throws {Error} - if the comment cannot be created.
    */
-  async createComment(comment: string) {
+  private async createComment(comment: string) {
     const { owner, repo } = this.context.repo;
     const { number: issue_number } = this.context.issue;
 
-    core.info('  Creating PR comment...');
+    core.info('  Creating a comment on Pull Request...');
 
     try {
       await this.octokit.rest.issues.createComment({
@@ -135,61 +145,61 @@ class PRUpdater {
         issue_number,
         body: comment,
       });
-      core.debug('    Successfully created PR comment');
+      core.debug('Successfully created a comment on Pull Request.');
     } catch (error) {
-      core.error(`    Failed to create comment on PR #${issue_number}: ${(error as Error).message}`);
+      core.error(`Failed to create comment on Pull Request #${issue_number}: ${(error as Error).message}`);
       throw error;
     }
   }
 
   /**
-   * Adds the 'blocked' label to the PR, creating it if it does not exist.
+   * Adds the 'blocked' label to the Pull Request, creating it if it does not exist.
    *
    * @throws {Error} - if adding the label failed.
    */
-  async addBlockedLabel() {
+  private async addBlockedLabel() {
     const { owner, repo } = this.context.repo;
     const { number: issue_number } = this.context.issue;
 
-    core.info('  Adding blocked label...');
+    core.info(`  Adding ${PR_LABEL} label...`);
 
     try {
       await this.octokit.rest.issues.addLabels({
         owner,
         repo,
         issue_number,
-        labels: ['blocked'],
+        labels: [PR_LABEL],
       });
 
-      core.debug(`Label operation completed for PR #${issue_number}`);
+      core.debug(`Label operation completed for Pull Request #${issue_number}.`);
     } catch (error) {
-      core.error(`    Error adding 'blocked' label: ${(error as Error).message}`);
+      core.error(`Error adding ${PR_LABEL} label.`);
       throw error;
     }
   }
 
   /**
-   * Removes the 'blocked' label from the PR.
+   * Removes the 'blocked' label from the Pull Request.
    *
    * @throws {Error} - if removing the label failed.
    */
-  async removeBlockedLabel() {
+  private async removeBlockedLabel() {
     const { owner, repo } = this.context.repo;
     const { number: issue_number } = this.context.issue;
 
-    core.info('  Removing blocked label...');
+    core.info(`  Removing ${PR_LABEL} label...`);
 
     try {
       await this.octokit.rest.issues.removeLabel({
         owner,
         repo,
         issue_number,
-        name: 'blocked',
+        name: PR_LABEL,
       });
 
-      core.debug(`    Label operation completed for PR #${issue_number}`);
+      core.debug(`Label operation completed for Pull Request #${issue_number}`);
     } catch (error) {
-      core.error(`    Error removing 'blocked' label: ${(error as Error).message}`);
+      core.error(`Error removing ${PR_LABEL} label.`);
       throw error;
     }
   }

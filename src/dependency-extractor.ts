@@ -11,7 +11,7 @@ import { getIssueTypes, getKeyPhrases } from './config.js';
  *
  * @returns {string} The hostname of the GitHub API server.
  */
-const getHostName = () => new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
+const getHostName = (): string => new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
 
 /**
  * Returns an object containing regex patterns for extracting dependency tags from a string.
@@ -25,7 +25,7 @@ const getHostName = () => new URL(process.env.GITHUB_SERVER_URL || 'https://gith
  *
  * @returns {Record<string, RegExp>} An object containing the regex patterns.
  */
-const getRegexPatterns = ():Record<string, RegExp> =>
+const getRegexPatterns = (): Record<string, RegExp> =>
   ({
     quickLink: /(?:^|\s|\D)(#\d+)(?=\s|#|$)(?<!\S[\w-]+\/[\w-]+#\d+)/g,
     partialLink: /(?:^|\s)([\w-]+\/[\w-]+#\d+)(?=\s|#|$)/g,
@@ -77,8 +77,13 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
 
   const allTags = dependencyUrls.flatMap((url) => {
     try {
-      const match = url.match(/^(?:https?:\/\/[^/]+\/)?([^/]+)\/([^/#]+)(?:\/(?:pull|issues)\/|#)(\d+)|#?(\d+)$/i);
-      //FIXME: Replace pull|issues with getIssueTypes()
+      const match = url.match(
+        new RegExp(
+          `^(?:https?:\\/\\/[^/]+\\/)?([^/]+)\\/([^/#]+)(?:\\/(?:${getIssueTypes()})\\/|#)(\\d+)|#?(\\d+)$`,
+          'i'
+        )
+      );
+
       if (match) {
         if (match[4]) {
           return [

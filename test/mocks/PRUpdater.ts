@@ -1,5 +1,6 @@
 import * as core from '@actions/core';
 import { IssueData, PullRequestData } from '@/types.js';
+import * as github from '@actions/github';
 
 /**
  * A mock implementation of the PRUpdater class for testing purposes.
@@ -11,7 +12,6 @@ export class MockPRUpdater {
   /**
    * Simulates updating a pull request with dependency information.
    *
-   * @param {PullRequestData} pullRequest - The pull request to be updated.
    * @param {IssueData[]} dependencies - Array of dependency issues to be processed.
    * @returns {void} Outputs a notice message with the number of dependencies.
    *
@@ -20,8 +20,8 @@ export class MockPRUpdater {
    * updater.updatePR(pullRequest, dependencies);
    */
   // noinspection JSUnusedGlobalSymbols - Used in tests
-  updatePR(pullRequest: PullRequestData, dependencies: IssueData[]): void {
-    core.notice(`MOCK: PR #${pullRequest.number} updated with ${dependencies.length} dependencies.`);
+  updatePR(dependencies: IssueData[]): void {
+    core.notice(`MOCK: PR #${github.context.issue.number} updated with ${dependencies.length} dependencies.`);
   }
 }
 

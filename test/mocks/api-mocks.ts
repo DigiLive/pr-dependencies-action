@@ -3,7 +3,7 @@ import { Octokit as OctoKitCore, Octokit } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';
 import { throttlingConfig } from '@/config.js';
 import { ThrottledOctokit } from '@/types.js';
-import { MockGitHubAPI, MockIssueResponse, MockPRResponse } from './types.js';
+import { MockGitHubAPI, MockIssueResponse, MockListCommentsResponse, MockPRResponse } from './types.js';
 
 const throttledOctokit: ThrottledOctokit = OctoKitCore.plugin(throttling);
 const apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
@@ -74,6 +74,47 @@ export const createMockGithubAPI = (): MockGitHubAPI => {
         number: issue_number,
       };
       return scope.get(`/repos/${owner}/${repo}/issues/${issue_number}`).reply(response.code, response.data);
+    },
+
+    /**
+     * Mocks the GitHub API endpoint to list comments on an issue.
+     *
+     * @param {string} owner - Repository owner (username or organization).
+     * @param {string} repo - Repository name.
+     * @param {number} issue_number - Issue number to list comments for.
+     * @param {MockListCommentsResponse} response - Mock response data to return.
+     */
+    mockListComments: (
+      owner: string,
+      repo: string,
+      issue_number: number,
+      response: MockListCommentsResponse
+    ): nock.Scope => {
+      return scope.get(`/repos/${owner}/${repo}/issues/${issue_number}/comments`).reply(response.code, response.data);
+    },
+
+    /**
+     * Mocks the GitHub API Post endpoints for an issue.
+     *
+     * @param {string} owner - Repository owner (username or organization).
+     * @param {string} repo - Repository name.
+     * @param {number} issue_number - Issue number to post (to).
+     * @param {number} response - The HTTP status code to simulate (e.g., 201 for created, 404 for not found)
+     */
+    mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => {
+      return scope.post(url => url.includes(`/repos/${owner}/${repo}/issues/${issue_number}`)).reply(response);
+    },
+
+    /**
+     * Mocks the GitHub API Delete endpoints for an issue.
+     *
+     * @param {string} owner - Repository owner (username or organization).
+     * @param {string} repo - Repository name.
+     * @param {number} issue_number - Issue number to delete (from).
+     * @param {number} response - The HTTP status code to simulate (e.g., 204 for deleted, 404 for not found)
+     */
+    mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => {
+      return scope.delete(url => url.includes(`/repos/${owner}/${repo}/issues/${issue_number}`)).reply(response);
     },
 
     /**

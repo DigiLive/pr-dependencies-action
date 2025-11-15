@@ -3,8 +3,17 @@ import { ThrottlingOptions } from '@octokit/plugin-throttling';
 import { RequestOptions } from '@octokit/types';
 import { Octokit } from '@octokit/core';
 
-const KEY_PHRASES: string = core.getInput('key-phrases') || 'depends on|blocked by';
 
+/**
+ * The key phrases used to identify dependency declarations.
+ *
+ * Note:
+ * The input's name currently can not contain hyphens (-) because of a bug in core.getInput().
+ * @see https://github.com/actions/toolkit/issues/2034
+ *
+ * @default 'depends on|blocked by'
+ */
+const KEY_PHRASES: string = core.getInput('phrases') || 'depends on|blocked by';
 
 /**
  * The label to be applied to the pull request when there are still open dependencies.

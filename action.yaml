@@ -8,7 +8,7 @@ runs:
   using: 'node20'
   main: 'dist/main.js'
 inputs:
-  key-phrases:
+  phrases:
     description: 'Pipe-separated list of key phrases to identify dependency declarations'
     required: false
     default: 'depends on|blocked by'

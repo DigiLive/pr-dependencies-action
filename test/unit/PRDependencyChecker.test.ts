@@ -12,17 +12,12 @@ vi.mock('@/PRUpdater.js', async () => {
 
 describe('PRDependencyChecker', () => {
   const targetPRNumber = github.context.issue.number;
-  const coreSpies = ['warning', 'notice', 'setOutput', 'setFailed'] as const;
 
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let checker: PRDependencyChecker;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    coreSpies.forEach((fnName) => {
-      vi.spyOn(core, fnName);
-    });
 
     checker = new PRDependencyChecker(mockedOctokit);
     mockApi = createMockGithubAPI();

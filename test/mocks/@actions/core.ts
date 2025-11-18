@@ -31,5 +31,11 @@ export const createMockCore = (actualCore: typeof originalCore): typeof original
   return {
     ...actualCore,
     debug: newDebugBehavior as typeof actualCore.debug,
+    notice: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+    setFailed: vi.fn(),
+    setOutput: vi.fn(),
   } as typeof originalCore;
 };

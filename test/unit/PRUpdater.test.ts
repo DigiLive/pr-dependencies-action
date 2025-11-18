@@ -8,14 +8,6 @@ import { MockPRUpdater } from '../mocks/types.js';
 
 describe('PRUpdater', () => {
   /**
-   * Defines the spies on the core module's logging functions.
-   */
-  const coreSpies = ['info', 'notice', 'error', 'debug'] as const;
-
-  let mockApi: ReturnType<typeof createMockGithubAPI>;
-  let updater: PRUpdater;
-
-  /**
    * The object representing a Pull Request's body with dependencies.
    */
   const bodyWithDependencies = {
@@ -45,18 +37,13 @@ This PR cannot be merged until the following dependencies are resolved:
     } as IssueData,
   ];
 
+  let mockApi: ReturnType<typeof createMockGithubAPI>;
+  let updater: PRUpdater;
+
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Setup core spies
-    coreSpies.forEach((fnName) => {
-      vi.spyOn(core, fnName);
-    });
-
-    // Create mock API
     mockApi = createMockGithubAPI();
-
-    // Create PRUpdater instance with mocked dependencies
     updater = new PRUpdater(mockedOctokit, github.context);
   });
 

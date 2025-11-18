@@ -10,13 +10,8 @@ vi.mock('../../src/PRDependencyChecker', () => ({
 let originalToken: string | undefined;
 
 describe('main', () => {
-  const coreSpies = ['notice', 'info', 'setFailed', 'error'] as const;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    coreSpies.forEach((fnName) => {
-      vi.spyOn(core, fnName);
-    });
   });
 
   afterEach(() => {

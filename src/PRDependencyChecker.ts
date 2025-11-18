@@ -60,20 +60,21 @@ export class PRDependencyChecker {
       const dependencies = await this.analyzeDependencies(pullRequest.body);
 
       if (dependencies.length > 0) {
-        const prUpdater = new PRUpdater(this.octokit, github.context);
         let result = `The following dependencies need to be resolved before Pull Request #${pullRequest.number} can be merged:\n\n`;
 
         for (const dependency of dependencies) {
           result += `  #${dependency.number} - ${dependency.title}\n`;
         }
 
-        await prUpdater.updatePR(dependencies);
         core.setFailed(result.trimEnd());
         core.setOutput('has-dependencies', true);
       } else {
         core.notice('All dependencies have been resolved!');
         core.setOutput('has-dependencies', false);
       }
+
+      const prUpdater = new PRUpdater(this.octokit, github.context);
+      await prUpdater.updatePR(dependencies);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       core.setFailed(`Dependency check failed: ${errorMessage}`);

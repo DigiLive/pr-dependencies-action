@@ -73,7 +73,6 @@ This PR cannot be merged until the following dependencies are resolved:
      * Asserts that the core outputs match the expected values for a successful updatePR call.
      */
     const assertCoreOutputForChanged = () => {
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have been changed.'));
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Creating a comment on Pull Request'));
       expect(core.info).toHaveBeenCalledWith(
         expect.stringContaining('Updating Pull Request #999 successfully finished.')
@@ -119,6 +118,7 @@ This PR cannot be merged until the following dependencies are resolved:
 
         await updater.updatePR(newDependencies);
 
+        expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have been changed.'));
         assertCoreOutputForChanged();
         expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
       });
@@ -146,6 +146,7 @@ This PR cannot be merged until the following dependencies are resolved:
 
       await updater.updatePR([]);
 
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('All dependencies have been resolved.'));
       assertCoreOutputForChanged();
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Removing blocked label'));
     });

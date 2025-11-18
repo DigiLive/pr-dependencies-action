@@ -36,8 +36,9 @@ const DEFAULT_HEADERS = {
  * - `done`: Verifies that all expected HTTP requests were made and cleans up the nock scope.
  */
 export const createMockGithubAPI = (): MockGitHubAPI => {
-  nock.disableNetConnect();
   const scope = nock(apiUrl).defaultReplyHeaders(DEFAULT_HEADERS);
+
+  nock.disableNetConnect();
 
   return {
     /**

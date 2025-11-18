@@ -29,14 +29,13 @@ class PRUpdater {
   /**
    * Updates a pull request with dependency information.
    *
-   * Adds a comment when the Pull Request's dependencies have been changed.
+   * Adds a comment when the Pull Request's dependencies have been changed or resolved.
    * While dependencies are still open, the Pull Request is labeled as blocked.
    *
    * @param {IssueData[]} dependencies - an array of dependencies.
    * @returns {Promise<void>} - a promise that resolves when the update is complete.
    */
   async updatePR(dependencies: IssueData[]): Promise<void> {
-    const { owner, repo } = this.context.repo;
     const { number: issue_number } = this.context.issue;
 
     core.info(`Updating Pull Request #${issue_number} with ${dependencies?.length || 0} dependencies`);
@@ -44,53 +43,57 @@ class PRUpdater {
     try {
       const hasDependencies = dependencies?.length > 0;
       const newComment = this.createCommentBody(dependencies);
+      const lastBotComment = await this.findLastBotComment(issue_number);
 
-      // Get Pull Request comments.
-      const { data: comments } = await this.octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number,
-      });
-
-      // Find the most recent comment of this action.
-      const lastBotComment = [...comments]
-        .reverse()
-        .find(
-          (comment) =>
-            comment.user?.login === 'github-actions[bot]' && comment.body?.includes('<!-- pr-dependencies-action -->')
-        );
-
-      // Only add a new comment if there isn't already an identical one
-      if (!lastBotComment || lastBotComment.body !== newComment) {
-        core.info('  The dependencies have been changed. Adding a comment...');
-
-        if (hasDependencies) {
-          await this.createComment(newComment);
-          await this.addBlockedLabel();
-        } else {
-          core.notice('All dependencies have been resolved.');
-
-          // Only add a comment if there was a previous blocking comment
-          if (lastBotComment) {
-            await this.createComment(newComment);
-          }
-          await this.removeBlockedLabel();
-        }
-      } else {
-        core.info('  The dependencies have not been changed.');
-
-        if (hasDependencies) {
-          await this.addBlockedLabel();
-        } else {
-          await this.removeBlockedLabel();
-        }
-      }
+      await this.handleDependencyUpdate(hasDependencies, newComment, lastBotComment);
 
       core.info(`Updating Pull Request #${issue_number} successfully finished.`);
     } catch (error) {
       core.error('Error updating Pull Request.');
       throw error;
     }
+  }
+
+  private async handleDependencyUpdate(
+    hasDependencies: boolean,
+    newComment: string,
+    lastBotComment?: { body?: string }
+  ): Promise<void> {
+    const commentChanged = !lastBotComment || lastBotComment.body !== newComment;
+
+    if (!commentChanged) {
+      core.info('  The dependencies have not been changed.');
+      await (hasDependencies ? this.addBlockedLabel() : this.removeBlockedLabel());
+      return;
+    }
+
+    if (hasDependencies) {
+      core.info('  The dependencies have been changed. Adding a comment...');
+      await this.createComment(newComment);
+      await this.addBlockedLabel();
+      return;
+    }
+
+    core.info(`  All dependencies have been resolved.${lastBotComment ? ' Adding a comment...' : ''}`);
+    if (lastBotComment) await this.createComment(newComment);
+    await this.removeBlockedLabel();
+  }
+
+  private async findLastBotComment(issueNumber: number) {
+    const { owner, repo } = this.context.repo;
+    const { data: comments } = await this.octokit.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+    });
+
+    return comments
+      .slice()
+      .reverse()
+      .find(
+        (comment) =>
+          comment.user?.login === 'github-actions[bot]' && comment.body?.includes('<!-- pr-dependencies-action -->')
+      );
   }
 
   /**

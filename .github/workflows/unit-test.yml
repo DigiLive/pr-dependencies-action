@@ -26,5 +26,3 @@ jobs:
 
       - name: Run Vitest
         run: npx vitest run --reporter=default
-        env:
-          DEBUG_TEST: 'false'

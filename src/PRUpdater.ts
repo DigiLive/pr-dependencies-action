@@ -115,7 +115,7 @@ class PRUpdater {
 
       dependencies.forEach((dependency) => {
         const dependencyType = isPullRequest(dependency) ? 'PR' : 'Issue';
-        comment += `- [${dependencyType} #${dependency.number}](${dependency.html_url}): ${dependency.title}\n`;
+        comment += `- [${dependencyType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}\n`;
       });
     }
 

@@ -5,7 +5,7 @@ import { mockContext } from './mocks/@actions/github.js';
 process.env.GITHUB_SERVER_URL ||= 'https://github.com';
 process.env.GITHUB_API_URL ||= 'https://api.github.com';
 process.env.GITHUB_TOKEN ||= 'test_token';
-process.env.DEBUG_TEST ||= 'false';
+process.env.ACTIONS_STEP_DEBUG ||= 'false';
 
 // Set global mocks.
 

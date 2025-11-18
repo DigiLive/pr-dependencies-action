@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { isPullRequest, IssueData } from './types.js';
 import { Octokit } from '@octokit/rest';
-import { PR_LABEL } from '@/config.js';
+import { PR_LABEL } from './config.js';
 
 /**
  * Handles pull request updates by commenting and labeling.

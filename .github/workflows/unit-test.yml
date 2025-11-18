@@ -3,6 +3,9 @@ name: Vitest Tests
 on:
   pull_request:
     types: [reopened, synchronize]
+    paths:
+      - 'src/**'
+      - 'package.json'
 
 jobs:
   vitest:

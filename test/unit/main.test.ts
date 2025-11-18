@@ -12,11 +12,11 @@ let originalToken: string | undefined;
 describe('main', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.resetModules();
   });
 
   describe('successful execution', () => {

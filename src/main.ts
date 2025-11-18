@@ -5,7 +5,7 @@ import { PRDependencyChecker } from './PRDependencyChecker.js';
 import { throttlingConfig } from './config.js';
 
 const ThrottledOctokit = OctoKitCore.plugin(throttling);
-const apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+const apiUrl = process.env.GITHUB_API_URL;
 const myToken = process.env.GITHUB_TOKEN;
 
 /**

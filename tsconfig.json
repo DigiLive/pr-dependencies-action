@@ -22,20 +22,17 @@
     "declaration": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "types": ["node", "vitest/globals"],
+    "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
 
-  // === FILES TO INCLUDE/EXCLUDE ===
-  // ONLY include source files for compilation
   "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
     "eslint.config.mjs",
-    "**/*.test.ts" // Exclude all test files from compilation
   ]
 }

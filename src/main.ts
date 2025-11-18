@@ -22,14 +22,14 @@ const myToken = process.env.GITHUB_TOKEN;
  */
 async function run(): Promise<void> {
   try {
-    core.info('Initializing the action...\n');
+    core.info('Initializing the action...');
 
     if (!myToken || !apiUrl) {
       throw new Error('GITHUB_TOKEN or GITHUB_API_URL environment variable is not set.');
     }
 
-    core.notice(`  Using GitHub Enterprise instance at: ${new URL(apiUrl).hostname}\n`);
-    core.debug(`  API URL: ${apiUrl}\n`);
+    core.info(`  Using GitHub Enterprise instance at: ${new URL(apiUrl).hostname}`);
+    core.debug(`  API URL: ${apiUrl}`);
 
     const octokit = new ThrottledOctokit({
       auth: myToken,

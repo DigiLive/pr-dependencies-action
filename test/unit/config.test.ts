@@ -51,7 +51,7 @@ describe('config', () => {
   });
 
   describe('createMemoizedRegexString', () => {
-    beforeEach(()=>{
+    beforeEach(() => {
       vi.resetModules();
     });
 

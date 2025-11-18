@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 
+// noinspection JSUnusedGlobalSymbols - Used by Vitest.
 export default defineConfig({
   test: {
     setupFiles: './test/vitest.setup.ts',

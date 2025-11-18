@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { IssueData, PullRequestData } from '@/types.js';
+import { IssueData } from '@/types.js';
 import * as github from '@actions/github';
 
 /**
@@ -19,7 +19,7 @@ export class MockPRUpdater {
    * const updater = new MockPRUpdater();
    * updater.updatePR(pullRequest, dependencies);
    */
-  // noinspection JSUnusedGlobalSymbols - Used in tests
+  // noinspection JSUnusedGlobalSymbols - Used in tests.
   updatePR(dependencies: IssueData[]): void {
     core.notice(`MOCK: PR #${github.context.issue.number} updated with ${dependencies.length} dependencies.`);
   }

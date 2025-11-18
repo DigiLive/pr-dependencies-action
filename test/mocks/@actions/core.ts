@@ -1,5 +1,4 @@
 import type * as originalCore from '@actions/core';
-import { InputOptions } from '@actions/core'; // Import only types
 
 /**
  * Creates a mock version of the @actions/core module, overriding the debug behavior to only write to the console when

@@ -3,6 +3,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { PRDependencyChecker } from '@/PRDependencyChecker.js';
+import { MockPRDependencyChecker } from '../mocks/types.js';
 
 // Mock PRUpdater.
 vi.mock('@/PRUpdater.js', async () => {
@@ -18,6 +19,7 @@ describe('PRDependencyChecker', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
     coreSpies.forEach((fnName) => {
       vi.spyOn(core, fnName);
     });
@@ -181,7 +183,10 @@ describe('PRDependencyChecker', () => {
       const errorMessage = 'Type Error is thrown.';
       const error = new Error(errorMessage);
 
-      vi.spyOn(PRDependencyChecker.prototype as any, 'fetchPullRequest').mockRejectedValueOnce(error);
+      vi.spyOn(
+        PRDependencyChecker.prototype as unknown as MockPRDependencyChecker,
+        'fetchPullRequest'
+      ).mockRejectedValueOnce(error);
 
       await checker.evaluate();
 
@@ -191,7 +196,10 @@ describe('PRDependencyChecker', () => {
     it('should handle non-Error values in catch block', async () => {
       const errorMessage = 'A non-Type Error is thrown';
 
-      vi.spyOn(PRDependencyChecker.prototype as any, 'fetchPullRequest').mockRejectedValueOnce(errorMessage);
+      vi.spyOn(
+        PRDependencyChecker.prototype as unknown as MockPRDependencyChecker,
+        'fetchPullRequest'
+      ).mockRejectedValueOnce(errorMessage);
 
       await checker.evaluate();
 

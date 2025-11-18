@@ -4,6 +4,7 @@ import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { PRUpdater } from '@/PRUpdater.js';
 import { IssueData } from '@/types.js';
+import { MockPRUpdater } from '../mocks/types.js';
 
 describe('PRUpdater', () => {
   /**
@@ -13,7 +14,6 @@ describe('PRUpdater', () => {
 
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let updater: PRUpdater;
-
 
   /**
    * The object representing a Pull Request's body with dependencies.
@@ -66,13 +66,15 @@ This PR cannot be merged until the following dependencies are resolved:
 
   describe('createCommentBody', () => {
     it('should generate correct comment body for no dependencies', () => {
-      const result = (updater as any).createCommentBody([]);
+      const result = (updater as unknown as MockPRUpdater).createCommentBody([]);
+
       expect(result).toContain('✅ All Dependencies Resolved');
       expect(result).toContain('no blocking dependencies');
     });
 
     it('should generate correct comment body with dependencies', () => {
-      const result = (updater as any).createCommentBody(newDependencies);
+      const result = (updater as unknown as MockPRUpdater).createCommentBody(newDependencies);
+
       expect(result).toContain('<!-- pr-dependencies-action -->');
       expect(result).toContain('⚠️ Blocking Dependencies Found');
       expect(result).toContain('PR #888');
@@ -97,13 +99,16 @@ This PR cannot be merged until the following dependencies are resolved:
      * This allows tests to control the output of the `createCommentBody` method, and ensures that the spy is restored
      * after the test.
      *
+     * @template T - The return type of the callback function
      * @param {() => Promise<T>} callback - The function to wrap with the mocked `createCommentBody` method.
      * @param {string} returnValue - The value to return from the mocked `createCommentBody` method.
      * @returns {Promise<T>} - The result of the wrapped function.
      */
     const withMockedBotComment = async <T>(callback: () => Promise<T>, returnValue: string): Promise<T> => {
       const spy = vi.spyOn(PRUpdater.prototype, 'createCommentBody' as never) as MockInstance;
+
       spy.mockReturnValue(returnValue);
+
       try {
         return await callback();
       } finally {

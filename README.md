@@ -1,60 +1,119 @@
-# PR Dependency Check Action
+# PR Dependencies Action
 
-This GitHub Action enforces PR dependencies as stated in a PR's opening comment.
+A GitHub Action that helps manage and visualize dependencies between pull requests.  
+It parses PR descriptions and comments to identify and track dependent PRs, then updates the PR with status information and helpful links.
 
-The bot parses the first comment of a PR looking for the key phrases "depends on" or "blocked by" followed by an issue
-number specified by `#` and the issue or PR number (e.g. `#5`).
+## Features
 
-## Supported link styles
+- **Dependency Detection**: Automatically identifies PR dependencies from the PR description and comments.
+- **Status Updates**: Updates PR status based on the state of dependent PRs.
+- **Smart Commenting**: Adds helpful comments with dependency status and navigation links.
+- **Flexible Configuration**: Works with public and private repositories.
+- **Supports Multiple Formats**: Understands various PR/issue reference formats.
 
-The action can detect links in the following styles:
+## How It Works
 
-- Quick Link: `#5`
-- Partial Link: `gregsdennis/dependencies-action#5`
-- Partial URL: `gregsdennis/dependencies-action/pull/5`
-- Full URL: `https://github.com/gregsdennis/dependencies-action/pull/5`
-- Markdown: `[markdown link](https://github.com/gregsdennis/dependencies-action/pull/5)`
+1. Scans the PR description and comments for dependency declarations.
+2. Validates the status of dependent PRs.
+3. Adds helpful comments with navigation links.
+4. Labels the PR with current dependency status.
 
-Works for both issues and PRs!
+## Supported Reference Formats
 
-Also supports custom domains for use with GitHub Enterprise!
+The action can detect PR/issue references in these formats:
 
-## See it in action
+- Quick Reference: `#123`
+- Repository Reference: `username/repo#123`
+- Partial URL: `username/repo/pull/123`
+- Full URL: `https://github.com/username/repo/pull/123`
+- Markdown Links: `[PR #123](https://github.com/username/repo/pull/123)`
 
-- [PR to be landed first](http://github.com/gregsdennis/dependencies-action/pull/4)
-- [PR to be landed second](http://github.com/gregsdennis/dependencies-action/pull/5)
+## Quick Start
 
-## Example usage
-
-Add the following to a `.yml` file in your `.github/workflows/` folder.
+Add this to a yml file in your `.github/workflows/`:
 
 ```yaml
-on:
-  pull_request_target:
-    types: [opened, edited, closed, reopened]
+name: PR Dependencies
 
-permissions:
-  issues: read
-  pull-requests: read
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
 
 jobs:
   check_dependencies:
-    runs-on: ubuntu-latest
     name: Check Dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Not required; Meant for possible future use.
+      pull-requests: read # Required to read other PRs
+      issues: write # Required to add comments and labels
+    
     steps:
-      - uses: gregsdennis/dependencies-action@main
+      - uses: digilive/pr-dependency-checker@main
         with:
-          custom-domains: my-custom-domain.io another.domain.com
+          phrases: 'depends on|blocked by' # Pipe separated list of phrases to identify dependency declarations.
+          label: 'blocked' # Label to add to the PR if it has dependencies.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # To interact with the GitHub API.
 ```
 
-### Permissions and the GitHub Token
+## Pull Request from a forked repository
 
-This action interacts with the GitHub API, which requires the use of a token.
+The standard `secrets.GITHUB_TOKEN` works for pull requests of your own repository.  
+For a pull request from a forked repository, you must either approve the run of the workflow manually or use a
+[Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token)
+(PAT).
 
-The standard `secrets.GITHUB_TOKEN` (as shown above) can be used when accessing issues and PRs on public repositories.
+> [!IMPORTANT]
+> The PAT is required only for workflows triggered by pull requests from forks if you want commenting/labeling to work
+> automatically.
 
-When your dependencies are issues or PRs found in private repositories,
-a [Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token)
-(PAT) is required. This PAT must have access to the target repositories.
+### PAT Requirements
+
+#### Required Scopes
+
+- (classic PAT) `repo` - Full control of private repositories
+
+or
+
+- Fine-grained PAT with:
+  - **Repository permissions**:
+    - Contents: Read-only (Optional; For future use)
+    - Metadata: Read-only
+    - Pull requests: Read and write
+    - Issues: Read and write
+
+### Token Setup
+
+- Create a PAT in [GitHub Settings > Developer Settings](https://github.com/settings/tokens).
+- Store it as a repository secret (e.g., `PR_DEPENDENCIES_PAT`).
+- Update your workflow to use the PAT:
+
+   ```yaml
+   env:
+     GITHUB_TOKEN: ${{ secrets.PR_DEPENDENCIES_PAT }}
+   ```
+
+## Usage in PRs
+
+In your PR description, specify dependencies using the phrases as **configured via the workflow input**:
+
+```markdown
+
+Depends on: #123
+Blocked by: [#456](https://github.com/username/repo/pull/456)
+```
+
+The action will automatically detect these references and update the PR with the current status of the dependencies.
+
+## Self-Hosted Runners
+
+This action works with GitHub-hosted runners. For self-hosted runners, ensure:
+
+1. Node.js 20 is installed.
+2. The runner has access to GitHub's API.
+3. Proper authentication is configured if accessing private repositories.
+
+## License
+
+This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.

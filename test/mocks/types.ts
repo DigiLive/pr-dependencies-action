@@ -80,3 +80,11 @@ export type MockGitHubAPI = {
   cleanup: () => void;
   done: () => void;
 };
+
+export interface MockPRDependencyChecker {
+  fetchPullRequest(id: string): Promise<PullRequestData>;
+}
+
+export interface MockPRUpdater {
+  createCommentBody(dependencies: IssueData[]): string;
+}

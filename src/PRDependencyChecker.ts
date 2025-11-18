@@ -112,7 +112,7 @@ export class PRDependencyChecker {
         pull_number: github.context.issue.number,
       });
       return data as PullRequestData;
-    } catch (error) {
+    } catch {
       throw Error(`Failed to fetch Pull Request #${github.context.issue.number}.`);
     } finally {
       this.indent--;
@@ -141,7 +141,7 @@ export class PRDependencyChecker {
       });
 
       return response.data as IssueData;
-    } catch (error) {
+    } catch {
       throw new Error(`Pull Request/Issue #${tag.number} not found.`);
     } finally {
       this.indent--;
@@ -176,7 +176,7 @@ export class PRDependencyChecker {
           if (dependency && dependency.state !== 'closed') {
             dependencies.push(dependency);
           }
-        } catch (error) {
+        } catch {
           core.warning(`Error while fetching Pull Request/Issue #${tag.number}. You'll need to verify it manually.`);
         }
       }

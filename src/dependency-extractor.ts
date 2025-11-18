@@ -85,6 +85,13 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
       );
 
       if (match) {
+        // Skip if the dependency is the same as the current PR.
+        if (github.context.issue.number === parseInt(match[4] ?? match[3], 10)) {
+          core.warning('The Pull Request has itself listed as a dependency.');
+          // TODO: Add a test for this.
+          return [];
+        }
+
         if (match[4]) {
           return [
             {

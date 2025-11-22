@@ -233,8 +233,12 @@ class IssueUpdater {
 
       core.debug(`Label operation completed for ${this.issueType} #${issue_number}`);
     } catch (error) {
-      core.error(`Error removing ${BLOCK_LABEL} label.`);
-      throw error;
+      if (error instanceof Error && 'status' in error && error.status !== 404) {
+        core.error(`Error removing ${BLOCK_LABEL} label: ${error.message}`);
+        throw error;
+      }
+
+      core.debug(`${BLOCK_LABEL} label was not present on ${this.issueType} #${issue_number}, nothing to remove`);
     }
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getDependencyTags } from '@/dependency-extractor.js';
+import * as core from '@actions/core';
 
 describe('Dependency Extractor', () => {
   describe('Quick Links', () => {
@@ -153,6 +154,16 @@ describe('Dependency Extractor', () => {
       const result = getDependencyTags(body);
 
       expect(result).toEqual([{ owner: 'test-owner', repo: 'test-repo', number: 123 }]);
+    });
+
+    it('does reject the PR number as a dependency', () => {
+      const body = 'Depends on: #123 #999';
+      const result = getDependencyTags(body);
+
+      expect(result).toEqual([{ owner: 'test-owner', repo: 'test-repo', number: 123 }]);
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringMatching('The Pull Request has itself listed as a dependency.')
+      );
     });
 
     it('ignores invalid issue numbers', () => {

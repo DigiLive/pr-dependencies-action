@@ -1,7 +1,8 @@
 # PR Dependencies Action
 
 A GitHub Action that helps manage and visualize dependencies between pull requests.  
-It parses PR descriptions and comments to identify and track dependent PRs, then updates the PR with status information and helpful links.
+It parses PR descriptions and comments to identify and track dependent PRs, then updates the PR with status information
+and helpful links.
 
 ## Features
 
@@ -45,9 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read # Not required; Meant for possible future use.
-      pull-requests: read # Required to read other PRs
-      issues: write # Required to add comments and labels
-    
+      pull-requests: write # Required to read other PRs
+
     steps:
       - uses: digilive/pr-dependency-checker@main
         with:
@@ -81,7 +81,6 @@ or
     - Contents: Read-only (Optional; For future use)
     - Metadata: Read-only
     - Pull requests: Read and write
-    - Issues: Read and write
 
 ### Token Setup
 

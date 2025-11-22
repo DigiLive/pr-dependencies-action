@@ -16,7 +16,7 @@
  * @see https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
  */
 export const mockContext = {
-  eventName: 'pull_request_target',
+  eventName: 'pull_request',
   repo: {
     owner: 'test-owner',
     repo: 'test-repo',

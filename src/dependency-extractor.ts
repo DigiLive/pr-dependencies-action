@@ -23,6 +23,7 @@ const getHostName = (): string => new URL(process.env.GITHUB_SERVER_URL || 'http
  * - `fullUrl`: A pattern for matching GitHub full URLs in the format of `https://github.com/owner/repo/issues/123`.
  * - `markdown`: A pattern for matching Markdown links in the format of `[text](url)`.
  *
+ * @todo: The url of a markdown link should contain any of the others
  * @returns {Record<string, RegExp>} An object containing the regex patterns.
  */
 const getRegexPatterns = (): Record<string, RegExp> =>
@@ -85,6 +86,12 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
       );
 
       if (match) {
+        // Skip if the dependency is the same as the current PR.
+        if (github.context.issue.number === parseInt(match[4] ?? match[3], 10)) {
+          core.warning('The Pull Request has itself listed as a dependency.');
+          return [];
+        }
+
         if (match[4]) {
           return [
             {

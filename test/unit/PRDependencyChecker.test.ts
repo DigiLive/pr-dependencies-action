@@ -5,24 +5,19 @@ import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { PRDependencyChecker } from '@/PRDependencyChecker.js';
 import { MockPRDependencyChecker } from '../mocks/types.js';
 
-// Mock PRUpdater.
-vi.mock('@/PRUpdater.js', async () => {
-  return await import('../mocks/PRUpdater.js');
+// Mock IssueUpdater.
+vi.mock('@/IssueUpdater.js', async () => {
+  return await import('../mocks/IssueUpdater.js');
 });
 
 describe('PRDependencyChecker', () => {
   const targetPRNumber = github.context.issue.number;
-  const coreSpies = ['warning', 'notice', 'setOutput', 'setFailed'] as const;
 
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let checker: PRDependencyChecker;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    coreSpies.forEach((fnName) => {
-      vi.spyOn(core, fnName);
-    });
 
     checker = new PRDependencyChecker(mockedOctokit);
     mockApi = createMockGithubAPI();

@@ -85,6 +85,6 @@ export interface MockPRDependencyChecker {
   fetchPullRequest(id: string): Promise<PullRequestData>;
 }
 
-export interface MockPRUpdater {
+export interface MockIssueUpdater {
   createCommentBody(dependencies: IssueData[]): string;
 }

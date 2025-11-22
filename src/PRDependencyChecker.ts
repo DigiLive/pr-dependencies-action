@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import { PRUpdater } from './PRUpdater.js';
+import { IssueUpdater } from './IssueUpdater.js';
 import { getDependencyTags } from './dependency-extractor.js';
 import { DependencyTag, IssueData, PullRequestData } from './types.js';
 import { Octokit } from '@octokit/rest';
@@ -73,8 +73,8 @@ export class PRDependencyChecker {
         core.setOutput('has-dependencies', false);
       }
 
-      const prUpdater = new PRUpdater(this.octokit, github.context);
-      await prUpdater.updatePR(dependencies);
+      const prUpdater = new IssueUpdater(this.octokit, github.context);
+      await prUpdater.updateIssue(dependencies);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       core.setFailed(`Dependency check failed: ${errorMessage}`);

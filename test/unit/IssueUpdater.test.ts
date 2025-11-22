@@ -2,20 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'v
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
-import { PRUpdater } from '@/PRUpdater.js';
+import { IssueUpdater } from '@/IssueUpdater.js';
 import { IssueData } from '@/types.js';
-import { MockPRUpdater } from '../mocks/types.js';
+import { IssueComment, MockIssueUpdater } from '../mocks/types.js';
 
-describe('PRUpdater', () => {
+describe('IssueUpdater', () => {
+  const IS_PR = github.context.eventName === 'pull_request';
+  const CHECKER_SIGNATURE = '<!-- dependency-checker-action -->';
+
   /**
    * The object representing a Pull Request's body with dependencies.
    */
-  const bodyWithDependencies = {
+  const getBodyWithDependencies = (isPR: boolean): IssueComment => ({
     user: { login: 'github-actions[bot]' },
-    body: `<!-- pr-dependencies-action -->
+    body: `${CHECKER_SIGNATURE}
 ## ⚠️ Blocking Dependencies Found
 
-This PR cannot be merged until the following dependencies are resolved:
+This ${isPR ? 'Pull Request' : 'Issue'} should not be ${isPR ? 'merged' : 'resolved'} until the following dependencies are resolved:
 
 - [PR #123](https://github.com/owner/repo/pull/123): Fix critical bug
 - [Issue #456](https://github.com/owner/repo/issues/456): Add new feature
@@ -23,7 +26,7 @@ This PR cannot be merged until the following dependencies are resolved:
 ---
 *This is an automated message. Please resolve the above dependencies, if any.*
 <!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->`,
-  };
+  });
 
   /**
    * Represents a list of dependencies.
@@ -38,13 +41,13 @@ This PR cannot be merged until the following dependencies are resolved:
   ];
 
   let mockApi: ReturnType<typeof createMockGithubAPI>;
-  let updater: PRUpdater;
+  let updater: IssueUpdater;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockApi = createMockGithubAPI();
-    updater = new PRUpdater(mockedOctokit, github.context);
+    updater = new IssueUpdater(mockedOctokit, github.context);
   });
 
   afterEach(() => {
@@ -53,32 +56,22 @@ This PR cannot be merged until the following dependencies are resolved:
 
   describe('createCommentBody', () => {
     it('should generate correct comment body for no dependencies', () => {
-      const result = (updater as unknown as MockPRUpdater).createCommentBody([]);
+      const result = (updater as unknown as MockIssueUpdater).createCommentBody([]);
 
       expect(result).toContain('✅ All Dependencies Resolved');
       expect(result).toContain('no blocking dependencies');
     });
 
     it('should generate correct comment body with dependencies', () => {
-      const result = (updater as unknown as MockPRUpdater).createCommentBody(newDependencies);
+      const result = (updater as unknown as MockIssueUpdater).createCommentBody(newDependencies);
 
-      expect(result).toContain('<!-- pr-dependencies-action -->');
+      expect(result).toContain(CHECKER_SIGNATURE);
       expect(result).toContain('⚠️ Blocking Dependencies Found');
       expect(result).toContain('PR #888');
     });
   });
 
-  describe('updatePR', () => {
-    /**
-     * Asserts that the core outputs match the expected values for a successful updatePR call.
-     */
-    const assertCoreOutputForChanged = () => {
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Creating a comment on Pull Request'));
-      expect(core.info).toHaveBeenCalledWith(
-        expect.stringContaining('Updating Pull Request #999 successfully finished.')
-      );
-    };
-
+  describe('updateIssue', () => {
     /**
      * Wraps a given callback function with a mocked value for the `createCommentBody` method.
      *
@@ -91,7 +84,7 @@ This PR cannot be merged until the following dependencies are resolved:
      * @returns {Promise<T>} - The result of the wrapped function.
      */
     const withMockedBotComment = async <T>(callback: () => Promise<T>, returnValue: string): Promise<T> => {
-      const spy = vi.spyOn(PRUpdater.prototype, 'createCommentBody' as never) as MockInstance;
+      const spy = vi.spyOn(IssueUpdater.prototype, 'createCommentBody' as never) as MockInstance;
 
       spy.mockReturnValue(returnValue);
 
@@ -100,6 +93,18 @@ This PR cannot be merged until the following dependencies are resolved:
       } finally {
         spy.mockRestore();
       }
+    };
+
+    /**
+     * Asserts that the `core.info` function was called with the expected arguments for a changed dependency.
+     *
+     * @param {boolean} isPR - Whether the dependency is a pull request or an issue.
+     */
+    const assertCoreOutputForChanged = (isPR: boolean) => {
+      const type = isPR ? 'Pull Request' : 'Issue';
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Creating a comment on ${type}`));
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Updating ${type} #999 successfully finished.`));
     };
 
     describe('changed dependencies', () => {
@@ -116,48 +121,48 @@ This PR cannot be merged until the following dependencies are resolved:
         mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [] });
         mockPostRequests();
 
-        await updater.updatePR(newDependencies);
+        await updater.updateIssue(newDependencies);
 
         expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have been changed.'));
-        assertCoreOutputForChanged();
+        assertCoreOutputForChanged(IS_PR);
         expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
       });
 
       it('should create new bot comment when dependencies differ from last bot comment', async () => {
         // Mock listComments to return existing bot comment and POST requests.
-        mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [bodyWithDependencies] });
+        mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
         mockPostRequests();
 
-        // Call method updatePR with mocked new bot comment.
-        await withMockedBotComment(() => updater.updatePR(newDependencies), 'Mocked comment body');
+        // Call method updateIssue with mocked new bot comment.
+        await withMockedBotComment(() => updater.updateIssue(newDependencies), 'Mocked comment body');
 
-        assertCoreOutputForChanged();
+        assertCoreOutputForChanged(IS_PR);
         expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
       });
     });
 
     it('should create a bot comment if all dependencies are resolved', async () => {
       // Mock listComments to return existing bot comment.
-      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [bodyWithDependencies] });
+      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
 
       // Mock API responses for creating a comment and removing a label.
       mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 201);
       mockApi.mockIssueDeleteRequest('test-owner', 'test-repo', 999, 200);
 
-      await updater.updatePR([]);
+      await updater.updateIssue([]);
 
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('All dependencies have been resolved.'));
-      assertCoreOutputForChanged();
+      assertCoreOutputForChanged(IS_PR);
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Removing blocked label'));
     });
 
     it('should not create a new comment when the dependencies have not been changed', async () => {
       // Mock listComments to return an existing bot comment and POST requests.
-      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [bodyWithDependencies] });
+      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
       mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 200);
 
-      // Call method updatePR with mocked new bot comment.
-      await withMockedBotComment(() => updater.updatePR(newDependencies), bodyWithDependencies.body);
+      // Call method updateIssue with mocked new bot comment.
+      await withMockedBotComment(() => updater.updateIssue(newDependencies), getBodyWithDependencies(IS_PR).body ?? '');
 
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have not been changed.'));
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
@@ -172,7 +177,7 @@ This PR cannot be merged until the following dependencies are resolved:
       // Mock listComments to result in a fail.
       mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 404 });
 
-      await expect(updater.updatePR(newDependencies)).rejects.toThrow();
+      await expect(updater.updateIssue(newDependencies)).rejects.toThrow();
 
       expect(core.error).toHaveBeenCalledWith(expect.stringMatching('Error updating Pull Request.'));
     });

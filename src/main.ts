@@ -3,6 +3,7 @@ import { Octokit as OctoKitCore } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';
 import { PRDependencyChecker } from './PRDependencyChecker.js';
 import { throttlingConfig } from './config.js';
+import * as github from '@actions/github';
 
 const ThrottledOctokit = OctoKitCore.plugin(throttling);
 const apiUrl = process.env.GITHUB_API_URL;
@@ -36,10 +37,10 @@ async function run(): Promise<void> {
       baseUrl: apiUrl,
       throttle: throttlingConfig,
     });
+    const checker = new PRDependencyChecker(octokit);
 
     core.info('Initialization completed. Starting...');
 
-    const checker = new PRDependencyChecker(octokit);
     await checker.evaluate();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

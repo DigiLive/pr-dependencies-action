@@ -5,9 +5,9 @@ import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { PRDependencyChecker } from '@/PRDependencyChecker.js';
 import { MockPRDependencyChecker } from '../mocks/types.js';
 
-// Mock PRUpdater.
-vi.mock('@/PRUpdater.js', async () => {
-  return await import('../mocks/PRUpdater.js');
+// Mock IssueUpdater.
+vi.mock('@/IssueUpdater.js', async () => {
+  return await import('../mocks/IssueUpdater.js');
 });
 
 describe('PRDependencyChecker', () => {

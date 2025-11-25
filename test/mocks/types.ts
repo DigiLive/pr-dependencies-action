@@ -1,4 +1,7 @@
 import { IssueData, PullRequestData } from '@/types.js';
+import nock from 'nock';
+import { Octokit } from '@octokit/rest';
+import * as github from '@actions/github';
 
 /**
  * Represents a mocked response for a GitHub Pull pulls API Get call.
@@ -72,11 +75,11 @@ export type MockListCommentsResponse = {
  * @see https://github.com/nock/nock for more information on HTTP mocking.
  */
 export type MockGitHubAPI = {
-  mockGetPR: (owner: string, repo: string, pull_number: number, response: MockPRResponse) => void;
-  mockGetIssue: (owner: string, repo: string, issue_number: number, response: MockIssueResponse) => void;
-  mockListComments: (owner: string, repo: string, issue_number: number, response: MockListCommentsResponse) => void;
-  mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => void;
-  mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => void;
+  mockGetPR: (owner: string, repo: string, pull_number: number, response: MockPRResponse) => nock.Scope;
+  mockGetIssue: (owner: string, repo: string, issue_number: number, response: MockIssueResponse) => nock.Scope;
+  mockListComments: (owner: string, repo: string, issue_number: number, response: MockListCommentsResponse) => nock.Scope;
+  mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
+  mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
   cleanup: () => void;
   done: () => void;
 };
@@ -86,5 +89,30 @@ export interface MockPRDependencyChecker {
 }
 
 export interface MockIssueUpdater {
-  createCommentBody(dependencies: IssueData[]): string;
+  // Static Properties
+  readonly SIGNATURE: string;
+
+  // Public Properties
+  dependencies: IssueData[];
+  dependents: IssueData[];
+
+  // Private Properties
+  readonly context: typeof github.context;
+  readonly issueType: string;
+  readonly octokit: Octokit;
+  lastBotComment: { body?: string } | undefined;
+
+  // Public Methods
+  addLabels(labels: string[]): Promise<void>;
+  removeLabels(labels: string[]): Promise<void>;
+  updateIssue(): Promise<void>;
+
+  // Private Methods
+  createCommentBody(): string;
+  createDependenciesMessage(): string;
+  createDependentsMessage(): string;
+  findLastBotComment(refresh?: boolean): Promise<{ body?: string } | undefined>;
+  handleDependencyUpdate(): Promise<void>;
+  postComment(comment: string): Promise<void>;
+  validateContext(): void;
 }

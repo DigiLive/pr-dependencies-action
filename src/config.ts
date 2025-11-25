@@ -20,7 +20,14 @@ const KEY_PHRASES: string = core.getInput('phrases') || 'depends on|blocked by';
  *
  * @default 'blocked'
  */
-export const BLOCK_LABEL: string = core.getInput('label') || 'blocked';
+export const BLOCKED_LABEL: string = core.getInput('blocked_label') || 'blocked';
+
+/**
+ * The label to be applied to an issue when there are still open dependents.
+ *
+ * @default 'blocking'
+ */
+export const BLOCKING_LABEL: string = core.getInput('blocking_label') || 'blocking';
 
 /**
  * Configuration options for request throttling when making API calls to GitHub.

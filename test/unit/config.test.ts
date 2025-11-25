@@ -19,14 +19,14 @@ describe('config', () => {
     it('should use default value when no input is provided', async () => {
       const config = await import('@/config.js');
 
-      expect(config.BLOCK_LABEL).toBe('blocked');
+      expect(config.BLOCKED_LABEL).toBe('blocked');
     });
 
     it('should use provided input value', async () => {
       process.env.INPUT_LABEL = 'dependant';
       const config = await import('@/config.js');
 
-      expect(config.BLOCK_LABEL).toBe('dependant');
+      expect(config.BLOCKED_LABEL).toBe('dependant');
     });
   });
 

@@ -28,8 +28,6 @@ class IssueUpdater {
    *
    * @param {Octokit} octokit - An Octokit instance.
    * @param {IssueData} issue - The issue to update.
-   *
-   * @throws {Error} If the context is missing required information.
    */
   constructor(octokit: Octokit, issue: IssueData) {
     this.octokit = octokit;
@@ -75,7 +73,6 @@ class IssueUpdater {
    * @returns {Promise<{body?: string} | undefined>} - a promise that resolves with the last bot comment.
    */
   async findLastBotComment(issue: IssueData): Promise<{ body?: string } | undefined> {
-    console.warn('>>>>>> REAL FIND'); //TODO: Remove
     try {
       const { data: comments } = await this.octokit.rest.issues.listComments(this.getIssueInfo(issue));
 

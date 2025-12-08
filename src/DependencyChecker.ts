@@ -83,6 +83,23 @@ export class DependencyChecker {
       const dependenciesResult = `- Unresolved Dependencies: ${parentDependencies.length} (${parentDependencies.map(issue => `#${issue.number}`).join(' ').trim() || 'none'})`;
       const dependentsResult = `- Blocked Dependents: ${parentDependents.length} (${parentDependents.map(issue => `#${issue.number}`).join(' ').trim() || 'none'})`;
 
+      if (parentDependents.length > 0) {
+        core.info(`Evaluating dependents of ${this.issueType} #${this.issue.number}...`);
+
+        for (const dependent of parentDependents) {
+          const dependentUpdater = new IssueUpdater(this.octokit, dependent);
+
+          lastBotComment = await dependentUpdater.findLastBotComment(dependent);
+          const childDependents = await this.getDependents(lastBotComment?.body ?? '');
+          const childDependencies = await this.getDependencies(dependent.body ?? '');
+
+          dependentUpdater.dependencies = childDependencies;
+          dependentUpdater.dependents = childDependents;
+
+          await dependentUpdater.updateIssue();
+        }
+      }
+
       if (parentDependencies.length > 0) {
         core.info(`Evaluating dependencies of ${this.issueType} #${this.issue.number}...`);
 

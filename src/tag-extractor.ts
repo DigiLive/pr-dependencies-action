@@ -39,6 +39,36 @@ const getRegexPatterns = (): Record<string, RegExp> =>
   }) as const;
 
 /**
+ * Extracts dependent tags from a comment body string.
+ *
+ * The dependents are assumed to be of the current repository.
+ *
+ * @param {string} commentBody - The comment body string to extract dependent tags from.
+ * @returns {DependencyTag[]} An array of dependent tags.
+ */
+export function getDependentsTags(commentBody: string): DependencyTag[] {
+  const dependentTags: DependencyTag[] = [];
+
+  const dependentsSection = commentBody.match(/the following dependents:\n([\s\S]*?)(?=\n---\n|$)/i);
+  if (!dependentsSection) return [];
+
+  const dependentRegex = /- \[(?:PR|Issue) #(\d+)]\([^)]+\/(\d+)\)/g;
+
+  let match;
+
+  while ((match = dependentRegex.exec(dependentsSection[0])) !== null) {
+    const issue_number = parseInt(match[1], 10);
+    dependentTags.push({
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+      issue_number: issue_number,
+    });
+  }
+
+  return dependentTags;
+}
+
+/**
  * Extracts dependency tags from a given string.
  *
  * This function takes a string and searches for dependency tags using various regex patterns.
@@ -46,19 +76,19 @@ const getRegexPatterns = (): Record<string, RegExp> =>
  *
  * If the input string is empty, it returns an empty array.
  *
- * @param {string} body - The string to search for dependency tags.
+ * @param {string} commentBody - The string to search for dependency tags.
  * @returns {DependencyTag[]} An array of DependencyTag objects.
  */
-export function getDependencyTags(body: string): DependencyTag[] {
-  if (!body) return [];
+export function getDependencyTags(commentBody: string): DependencyTag[] {
+  if (!commentBody) return [];
 
   // Process other types of matches. Markdown links are processed first to avoid false positives.
   const dependencyUrls = [
-    ...extractDependencyUrls(body, getRegexPatterns().markdown),
-    ...extractDependencyUrls(body, getRegexPatterns().quickLink),
-    ...extractDependencyUrls(body, getRegexPatterns().partialLink),
-    ...extractDependencyUrls(body, getRegexPatterns().partialUrl),
-    ...extractDependencyUrls(body, getRegexPatterns().fullUrl),
+    ...extractDependencyUrls(commentBody, getRegexPatterns().markdown),
+    ...extractDependencyUrls(commentBody, getRegexPatterns().quickLink),
+    ...extractDependencyUrls(commentBody, getRegexPatterns().partialLink),
+    ...extractDependencyUrls(commentBody, getRegexPatterns().partialUrl),
+    ...extractDependencyUrls(commentBody, getRegexPatterns().fullUrl),
   ];
 
   return compileDependencyTags(dependencyUrls);
@@ -97,7 +127,7 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
             {
               owner: github.context.repo.owner,
               repo: github.context.repo.repo,
-              number: parseInt(match[4], 10),
+              issue_number: parseInt(match[4], 10),
             },
           ];
         }
@@ -106,7 +136,7 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
           {
             owner: match[1],
             repo: match[2],
-            number: parseInt(match[3], 10),
+            issue_number: parseInt(match[3], 10),
           },
         ];
       }
@@ -122,7 +152,7 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
   // Remove duplicates
   const uniqueTags = new Map<string, DependencyTag>();
   for (const tag of allTags) {
-    const key = `${tag.owner}/${tag.repo}#${tag.number}`;
+    const key = `${tag.owner}/${tag.repo}#${tag.issue_number}`;
     if (!uniqueTags.has(key)) {
       uniqueTags.set(key, tag);
     }
@@ -141,19 +171,19 @@ function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
  *
  * The extracted URLs are returned as an array of strings.
  *
- * @param {string} text - The string to search for dependency URLs.
+ * @param {string} commentBody - The string to search for dependency URLs.
  * @param {RegExp} pattern - The URL regex pattern to match against the input string.
  * @returns {string[]} An array of dependency URLs.
  */
-function extractDependencyUrls(text: string, pattern: RegExp): string[] {
+function extractDependencyUrls(commentBody: string, pattern: RegExp): string[] {
   const keyPhraseRegex = new RegExp(`^(?:${getKeyPhrases()}):`, 'i');
   const dependencyUrls: string[] = [];
 
-  core.debug(`Extracting dependency URLs from text: ${text.substring(0, 50)}...`);
+  core.debug(`Extracting dependency URLs from text: ${commentBody.substring(0, 50)}...`);
 
   let insideDependencyBlock = false;
 
-  const textLines: string[] = text.split('\n');
+  const textLines: string[] = commentBody.split('\n');
 
   for (let line of textLines) {
     line = line.trim();

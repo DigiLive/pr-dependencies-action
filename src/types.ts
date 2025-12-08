@@ -5,7 +5,8 @@ import { throttling } from '@octokit/plugin-throttling';
 export interface DependencyTag {
   owner: string;
   repo: string;
-  number: number;
+  issue_number: number;
+  [key: string]: unknown;
 }
 
 /**
@@ -47,5 +48,5 @@ export type ThrottledOctokit = typeof OctoKitCore & ReturnType<typeof throttling
  * @returns True if the item has the necessary pull_request properties defined.
  */
 export function isPullRequest(issue: IssueData): issue is PullRequestFromIssueData {
-  return issue.pull_request !== null && issue.pull_request !== undefined;
+  return 'pull_request' in issue;
 }

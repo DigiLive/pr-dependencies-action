@@ -2,8 +2,7 @@ name: Dependency Check Self-Test
 
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize]
-    # TODO: Check if PR closed event is needed also.
+    types: [opened, reopened, edited, synchronize, closed]
   issues:
     types: [opened, reopened, edited, closed]
 
@@ -14,7 +13,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v4

@@ -1,6 +1,5 @@
 import * as core from '@actions/core';
-import * as github from '@actions/github';
-import { isPullRequest, IssueData } from './types.js';
+import { DependencyTag, isPullRequest, IssueData } from './types.js';
 import { Octokit } from '@octokit/rest';
 import { BLOCKED_LABEL, BLOCKING_LABEL } from './config.js';
 import { CheckerError } from './CheckerError.js';
@@ -21,28 +20,25 @@ class IssueUpdater {
   public dependencies: IssueData[] = [];
   public dependents: IssueData[] = [];
   private readonly octokit: Octokit;
-  private readonly context: typeof github.context;
+  private readonly issue: IssueData;
   private readonly issueType: string;
-  private lastBotComment: { body?: string } | undefined;
 
   /**
    * Initializes a new instance.
    *
-   * @param {Octokit} octokit - an Octokit instance.
-   * @param {typeof github.context} context - the GitHub context for the action.
+   * @param {Octokit} octokit - An Octokit instance.
+   * @param {IssueData} issue - The issue to update.
    *
    * @throws {Error} If the context is missing required information.
    */
-  constructor(octokit: Octokit, context: typeof github.context) {
-    this.validateContext();
-
+  constructor(octokit: Octokit, issue: IssueData) {
     this.octokit = octokit;
-    this.context = context;
-    this.issueType = github.context.eventName === 'pull_request' ? 'Pull Request' : 'Issue';
+    this.issue = issue;
+    this.issueType = isPullRequest(issue) ? 'Pull Request' : 'Issue';
   }
 
   /**
-   * Updates an issue with dependency and dependent information.
+   * Updates the issue with dependency and dependent information.
    *
    * Adds a comment when the issue's dependencies/dependents have been changed or resolved.
    * While dependencies/dependents are still open, the issue is labeled as blocked.
@@ -50,28 +46,71 @@ class IssueUpdater {
    * @returns {Promise<void>} - a promise that resolves when the update is complete.
    */
   async updateIssue(): Promise<void> {
-    const { number: issue_number } = this.context.issue;
-
     core.info(
-      `Updating ${this.issueType} #${issue_number} with ${this.dependencies?.length || 0} dependencies. and ${this.dependents?.length || 0} dependants.`
+      `Updating ${this.issueType} #${this.issue.number} with ${this.dependencies.length} dependencies. and ${this.dependents.length} dependents.`
     );
 
     try {
       await this.handleDependencyUpdate();
 
-      core.info(`Updating ${this.issueType} #${issue_number} successfully finished.`);
+      core.info(`Updating ${this.issueType} #${this.issue.number} successfully finished.`);
     } catch (error) {
       if (!(error instanceof CheckerError)) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         core.debug(`Unexpected error: ${errorMessage}`);
       }
 
-      throw new CheckerError(`Error updating ${this.issueType} #${issue_number}.`, error);
+      throw new CheckerError(`Error updating ${this.issueType} #${this.issue.number}.`, error);
     }
   }
 
   /**
-   * Handles the dependency update for an issue.
+   * Finds the last bot comment on a given issue.
+   *
+   * The function searches through the comments of the issue in reverse order, looking for a comment
+   * created by the 'github-actions[bot]' user that contains this class's signature.
+   * If such a comment is found, it is returned. Otherwise, the function returns undefined.
+   *
+   * @param {IssueData} issue The issue to find the last bot comment for.
+   * @returns {Promise<{body?: string} | undefined>} - a promise that resolves with the last bot comment.
+   */
+  async findLastBotComment(issue: IssueData): Promise<{ body?: string } | undefined> {
+    console.warn('>>>>>> REAL FIND'); //TODO: Remove
+    try {
+      const { data: comments } = await this.octokit.rest.issues.listComments(this.getIssueInfo(issue));
+
+      return comments
+        .slice()
+        .reverse()
+        .find(
+          (comment) => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(IssueUpdater.SIGNATURE)
+        );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      core.debug(`Failed to fetch comments for ${this.issueType} #${issue.number}: ${errorMessage}`);
+
+      throw new CheckerError(`Failed to fetch comments for ${this.issueType} #${issue.number}`, error);
+    }
+  }
+
+  /**
+   * Extracts repository and issue number from a given issue.
+   *
+   * @param {IssueData} issue - The issue to extract information from.
+   * @returns {DependencyTag} An object containing repository and issue information.
+   */
+  private getIssueInfo(issue: IssueData): DependencyTag {
+    const parts = issue.repository_url.split('/');
+
+    return {
+      owner: parts[parts.length - 2],
+      repo: parts[parts.length - 1],
+      issue_number: issue.number,
+    };
+  }
+
+  /**
+   * Handles the dependency update for the issue.
    *
    * If the comment has not changed, it will not update the issue.
    * If the dependencies have changed, it will add a new comment and block the issue.
@@ -80,9 +119,9 @@ class IssueUpdater {
    * @returns {Promise<void>} - A promise that resolves when the update is complete.
    */
   private async handleDependencyUpdate(): Promise<void> {
-    const hasDependencies = this.dependencies?.length > 0;
-    const hasDependents = this.dependents?.length > 0;
-    const lastBotComment = await this.findLastBotComment();
+    const hasDependencies = this.dependencies.length > 0;
+    const hasDependents = this.dependents.length > 0;
+    const lastBotComment = await this.findLastBotComment(this.issue);
     const newComment = this.createCommentBody();
     const commentChanged = !lastBotComment || lastBotComment.body !== newComment;
     const labelsToAdd = [...(hasDependencies ? [BLOCKED_LABEL] : []), ...(hasDependents ? [BLOCKING_LABEL] : [])];
@@ -94,61 +133,16 @@ class IssueUpdater {
     }
 
     if (hasDependencies || hasDependents) {
-      core.info('  The dependencies/dependents have been changed. Adding a comment...');
+      core.info('  The dependencies/dependents have been changed.');
       await this.postComment(newComment);
       await this.addLabels(labelsToAdd);
       await this.removeLabels(labelsToRemove);
       return;
     }
 
-    core.info(`  All dependencies/dependents have been resolved.${lastBotComment ? ' Adding a comment...' : ''}`);
+    core.info('  All dependencies/dependents have been resolved.');
     if (lastBotComment) await this.postComment(newComment);
     await this.removeLabels(labelsToRemove);
-  }
-
-  /**
-   * Finds the last bot comment on an issue.
-   *
-   * The function searches through the comments of the issue in reverse order, looking for a comment
-   * created by the 'github-actions[bot]' user that contains the action's signature.
-   * If such a comment is found, it is returned. Otherwise, the function returns undefined.
-   *
-   * Note: <br>
-   * The function will only search through the comments if the last bot comment is not already cached or if the refresh
-   * parameter is true.
-   *
-   * @param {boolean} refresh - Whether to refresh the last bot comment.
-   * @returns {Promise<{body?: string} | undefined>} - a promise that resolves with the last bot comment.
-   */
-  private async findLastBotComment(refresh: boolean = false): Promise<{ body?: string } | undefined> {
-    if (this.lastBotComment && !refresh) {
-      return this.lastBotComment;
-    }
-
-    const { owner, repo } = this.context.repo;
-    const { number: issue_number } = this.context.issue;
-
-    try {
-      const { data: comments } = await this.octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number,
-      });
-
-      this.lastBotComment = comments
-        .slice()
-        .reverse()
-        .find(
-          (comment) => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(IssueUpdater.SIGNATURE)
-        );
-
-      return this.lastBotComment;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      core.debug(`Failed to fetch comments for ${this.issueType} #${issue_number}: ${errorMessage}`);
-
-      throw new CheckerError(`Failed to fetch comments for ${this.issueType} #${issue_number}`, error);
-    }
   }
 
   /**
@@ -230,25 +224,21 @@ class IssueUpdater {
    * @throws {Error} - if posting the comment failed.
    */
   private async postComment(comment: string) {
-    const { owner, repo } = this.context.repo;
-    const { number: issue_number } = this.context.issue;
-
-    core.info(`  Posting a comment to ${this.issueType} #${issue_number}...`);
+    core.info(`  Posting a comment to ${this.issueType} #${this.issue.number}...`);
 
     try {
       await this.octokit.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number,
+        ...this.getIssueInfo(this.issue),
         body: comment,
       });
+
       core.debug('Successfully posted a comment.');
     } catch (error) {
       const errorInstance = error instanceof Error;
       const errorMessage = errorInstance ? error.message : String(error);
 
-      core.debug(`Failed to post a comment on ${this.issueType} #${issue_number}: ${errorMessage}`);
-      throw new CheckerError(`Failed to post a comment on ${this.issueType} #${issue_number}.`, error);
+      core.debug(`Failed to post a comment on ${this.issueType} #${this.issue.number}: ${errorMessage}`);
+      throw new CheckerError(`Failed to post a comment on ${this.issueType} #${this.issue.number}.`, error);
     }
   }
 
@@ -263,20 +253,15 @@ class IssueUpdater {
       return;
     }
 
-    const { owner, repo } = this.context.repo;
-    const { number: issue_number } = this.context.issue;
-
     core.info(`  Adding labels: ${labels.join(', ')}...`);
 
     try {
       await this.octokit.rest.issues.addLabels({
-        owner,
-        repo,
-        issue_number,
+        ...this.getIssueInfo(this.issue),
         labels: labels,
       });
 
-      core.debug(`Label adding completed for ${this.issueType} #${issue_number}.`);
+      core.debug(`Label adding completed for ${this.issueType} #${this.issue.number}.`);
     } catch (error) {
       const errorInstance = error instanceof Error;
       const errorMessage = errorInstance ? error.message : String(error);
@@ -297,8 +282,6 @@ class IssueUpdater {
       return;
     }
 
-    const { owner, repo } = this.context.repo;
-    const { number: issue_number } = this.context.issue;
     const labelErrors = [];
 
     core.info(`  Removing labels: ${labels.join(', ')}...`);
@@ -306,16 +289,14 @@ class IssueUpdater {
     for (const label of labels) {
       try {
         await this.octokit.rest.issues.removeLabel({
-          owner,
-          repo,
-          issue_number,
+          ...this.getIssueInfo(this.issue),
           name: label,
         });
       } catch (error) {
         const errorInstance = error instanceof Error;
 
         if (errorInstance && 'status' in error && error.status === 404) {
-          core.debug(`Label '${label}' was not present on ${this.issueType} #${issue_number}.`);
+          core.debug(`Label '${label}' was not present on ${this.issueType} #${this.issue.number}.`);
           continue;
         }
 
@@ -337,21 +318,7 @@ class IssueUpdater {
       );
     }
 
-    core.debug(`Label removing completed for ${this.issueType} #${issue_number}.`);
-  }
-
-  /**
-   * Validates that required parameters are present.
-   *
-   * @private
-   * @throws {Error} If required parameters are missing.
-   */
-  private validateContext() {
-    if (!['pull_request', 'issues'].includes(github.context.eventName)) {
-      throw new CheckerError(
-        `Event name '${github.context.eventName}' is not supported. Expected 'pull_request' or 'issues'.`
-      );
-    }
+    core.debug(`Label removing completed for ${this.issueType} #${this.issue.number}.`);
   }
 }
 

@@ -31,11 +31,11 @@ export const createMockCore = (actualCore: typeof originalCore): typeof original
   return {
     ...actualCore,
     debug: newDebugBehavior as typeof actualCore.debug,
-    notice: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-    error: vi.fn(),
-    setFailed: vi.fn(),
+    notice: vi.fn(message => console.log(message)),
+    info: vi.fn(message => console.log(message)), //TODO: Remove these 4
+    warning: vi.fn(message => console.warn(message)),
+    error: vi.fn(message => console.error(message)),
+    setFailed: vi.fn(message => console.log(message)),
     setOutput: vi.fn(),
   } as typeof originalCore;
 };

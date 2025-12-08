@@ -1,47 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@actions/core';
-import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { IssueUpdater } from '@/IssueUpdater.js';
 import { IssueData } from '@/types.js';
-import { IssueComment, MockIssueUpdater } from '../mocks/types.js';
+import { IssueUpdaterInterface } from '../mocks/types.js';
 import { CheckerError } from '@/CheckerError.js';
+import { constants } from '../constants/constants.js';
+import { createTestBotComment } from '../fixtures/comments.js';
+import { testDependencies, testIssue } from '../fixtures/issues.js';
+
+const { CHECKER_SIGNATURE, CURRENT_ISSUE_TYPE } = constants;
 
 describe('IssueUpdater', () => {
-  const CURRENT_ISSUE_TYPE = github.context.eventName === 'pull_request' ? 'Pull Request' : 'Issue';
-  const CURRENT_IS_PR = github.context.eventName === 'pull_request';
-  const CHECKER_SIGNATURE = '<!-- dependency-checker-action -->';
-
-  /**
-   * The object representing a bot-comment.
-   */
-  const getBotComment = (): IssueComment => ({
-    user: { login: 'github-actions[bot]' },
-    body: `${CHECKER_SIGNATURE}
-## ⚠️ Blocking Dependencies Found
-
-This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'} until the following dependencies are resolved:
-
-- [PR #123](https://github.com/owner/repo/pull/123): Fix critical bug
-- [Issue #456](https://github.com/owner/repo/issues/456): Add new feature
-
----
-*This is an automated message. Please resolve the above dependencies, if any.*
-<!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->`,
-  });
-
-  /**
-   * Represents a list of dependencies/dependents.
-   */
-  const newDeps: IssueData[] = [
-    {
-      number: 888,
-      title: 'Dependency Pull Request',
-      html_url: 'https://github.com/owner/repo/pull/888',
-      pull_request: {},
-    } as IssueData,
-  ];
-
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let updater: IssueUpdater;
 
@@ -49,7 +19,7 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
     vi.clearAllMocks();
 
     mockApi = createMockGithubAPI();
-    updater = new IssueUpdater(mockedOctokit, github.context);
+    updater = new IssueUpdater(mockedOctokit, testIssue);
   });
 
   afterEach(() => {
@@ -68,11 +38,14 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
   ): Promise<{ error: CheckerError; originalError: T }> {
     try {
       await promise;
-      throw new Error('Expected promise to reject');
+
+      throw new Error(`Promise resolved without throwing a CheckerError.`);
     } catch (error: unknown) {
-      expect(error).toBeInstanceOf(CheckerError);
+      expect(error instanceof CheckerError, 'Error instanceof CheckerError = false').toBe(true);
+
       const checkerError = error as CheckerError;
       expect(checkerError.originalError).toBeDefined();
+
       return {
         error: checkerError,
         originalError: checkerError.originalError as T,
@@ -80,49 +53,59 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
     }
   }
 
+  describe('getIssueInfo', () => {
+    it('should return a dependency tag', () => {
+      const thisIssue = (updater as unknown as IssueUpdaterInterface).issue;
+
+      const result = (updater as unknown as IssueUpdaterInterface).getIssueInfo(thisIssue);
+
+      expect(result).toEqual({
+        owner: 'owner',
+        repo: 'repo',
+        issue_number: testIssue.number,
+      });
+    });
+  });
+
   describe('updateIssue', () => {
     it('should result in a successful update', async () => {
-      (updater as unknown as MockIssueUpdater).handleDependencyUpdate = vi.fn().mockResolvedValue(undefined);
+      (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate = vi.fn().mockResolvedValue(undefined);
 
       await updater.updateIssue();
 
       expect(core.info).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Updating Pull Request #${github.context.issue.number} with 0 dependencies. and 0 dependants.`
-        )
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} with 0 dependencies. and 0 dependents.`)
       );
       expect(core.info).toHaveBeenCalledWith(
-        expect.stringContaining(`Updating Pull Request #${github.context.issue.number} successfully finished.`)
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} successfully finished.`)
       );
     });
 
     it('should result in a failed update', async () => {
-      (updater as unknown as MockIssueUpdater).handleDependencyUpdate = vi
+      (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate = vi
         .fn()
         .mockRejectedValue(new Error('Mock Error'));
 
       const { error, originalError } = await getCheckerError<CheckerError>(updater.updateIssue());
 
-      expect(error.message).toBe(`Error updating ${CURRENT_ISSUE_TYPE} #${github.context.issue.number}.`);
+      expect(error.message).toBe(`Error updating ${CURRENT_ISSUE_TYPE} #${testIssue.number}.`);
       expect(originalError.message).toBe(`Mock Error`);
 
       expect(core.info).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Updating Pull Request #${github.context.issue.number} with 0 dependencies. and 0 dependants.`
-        )
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} with 0 dependencies. and 0 dependents.`)
       );
       expect(core.info).not.toHaveBeenCalledWith(
-        expect.stringContaining(`Updating Pull Request #${github.context.issue.number} successfully finished.`)
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} successfully finished.`)
       );
     });
   });
 
   describe('handleDependencyUpdate', () => {
-    let mockUpdater: MockIssueUpdater;
+    let mockUpdater: IssueUpdaterInterface;
 
     beforeEach(() => {
       // Default mocks
-      mockUpdater = updater as unknown as MockIssueUpdater;
+      mockUpdater = updater as unknown as IssueUpdaterInterface;
       mockUpdater.findLastBotComment = vi.fn().mockResolvedValue(undefined);
       mockUpdater.createCommentBody = vi.fn().mockResolvedValue(undefined);
       mockUpdater.postComment = vi.fn().mockResolvedValue(undefined);
@@ -138,21 +121,21 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
       mockUpdater.findLastBotComment = vi.fn().mockResolvedValue('Mock Comment');
       mockUpdater.createCommentBody = vi.fn().mockResolvedValue('Mock Comment');
 
-      updater.dependencies = newDeps;
-      await (updater as unknown as MockIssueUpdater).handleDependencyUpdate();
+      updater.dependencies = testDependencies;
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
 
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies/dependents have been changed.'));
     });
 
     it('should log changes', async () => {
-      updater.dependencies = newDeps;
-      await (updater as unknown as MockIssueUpdater).handleDependencyUpdate();
+      updater.dependencies = testDependencies;
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
 
       expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies/dependents have been changed.'));
     });
 
     it('should log all resolved', async () => {
-      await (updater as unknown as MockIssueUpdater).handleDependencyUpdate();
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
 
       expect(core.info).toHaveBeenCalledWith(
         expect.stringContaining('All dependencies/dependents have been resolved.')
@@ -161,51 +144,45 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
   });
 
   describe('findLastBotComment', () => {
+    let thisIssue: IssueData;
+
+    beforeEach(() => {
+      thisIssue = (updater as unknown as IssueUpdaterInterface).issue;
+    });
+
     it('should return no bot-comment', async () => {
-      mockApi.mockListComments('test-owner', 'test-repo', github.context.issue.number, {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
         code: 200,
         data: [],
       });
 
-      const result = await (updater as unknown as MockIssueUpdater).findLastBotComment();
+      const result = await (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue);
 
       expect(result).toBe(undefined);
     });
 
     it('should return a new bot-comment', async () => {
-      mockApi.mockListComments('test-owner', 'test-repo', github.context.issue.number, {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
         code: 200,
-        data: [getBotComment()],
+        data: [createTestBotComment()],
       });
 
-      const result = await (updater as unknown as MockIssueUpdater).findLastBotComment();
+      const result = await (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue);
 
-      expect(result).toStrictEqual(getBotComment());
-    });
-
-    it('should return a cached bot-comment', async () => {
-      mockApi.mockListComments('test-owner', 'test-repo', github.context.issue.number, {
-        code: 200,
-        data: [getBotComment()],
-      });
-
-      const firstResult = await (updater as unknown as MockIssueUpdater).findLastBotComment(true);
-      const secondResult = await (updater as unknown as MockIssueUpdater).findLastBotComment();
-
-      expect(secondResult).toStrictEqual(firstResult);
+      expect(result).toStrictEqual(createTestBotComment());
     });
 
     it('should throw an error', async () => {
-      mockApi.mockListComments('test-owner', 'test-repo', github.context.issue.number, {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
         code: 500,
         data: [],
       });
 
       const { error, originalError } = await getCheckerError<CheckerError>(
-        (updater as unknown as MockIssueUpdater).findLastBotComment()
+        (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue)
       );
 
-      expect(error.message).toBe(`Failed to fetch comments for ${CURRENT_ISSUE_TYPE} #${github.context.issue.number}`);
+      expect(error.message).toBe(`Failed to fetch comments for ${CURRENT_ISSUE_TYPE} #${testIssue.number}`);
       // Assert for the constructor's name because instanceOf is unreliable in this environment.
       expect(originalError.constructor.name).toBe('RequestError');
     });
@@ -213,7 +190,7 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
 
   describe('createCommentBody', () => {
     it('should generate comment body for no dependencies', () => {
-      const result = (updater as unknown as MockIssueUpdater).createCommentBody();
+      const result = (updater as unknown as IssueUpdaterInterface).createCommentBody();
 
       expect(result).toContain('✅ All Dependencies Resolved');
       expect(result).toContain('✅ All Dependents Resolved');
@@ -233,27 +210,27 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
     ];
 
     test.each(testCases)('should generate comment body with $name', ({ property, expectedText }) => {
-      updater[property] = newDeps;
-      const result = (updater as unknown as MockIssueUpdater).createCommentBody();
+      updater[property] = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createCommentBody();
 
       expect(result).toContain(CHECKER_SIGNATURE);
       expect(result).toContain(expectedText);
-      expect(result).toContain(`PR #${newDeps[0].number}`);
+      expect(result).toContain(`PR #${testDependencies[0].number}`);
     });
   });
 
   describe('createDependenciesMessage', () => {
     it('should generate a resolved message', () => {
-      const result = (updater as unknown as MockIssueUpdater).createDependenciesMessage();
+      const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
       expect(result).toContain('All Dependencies Resolved.');
     });
 
     it('should generate a dependencies list', () => {
-      updater.dependencies = newDeps;
-      const result = (updater as unknown as MockIssueUpdater).createDependenciesMessage();
+      updater.dependencies = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
 
       expect(result).toContain('Blocking Dependencies Found:');
-      newDeps.forEach((dependency) => {
+      testDependencies.forEach((dependency) => {
         const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
         expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);
       });
@@ -262,16 +239,16 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
 
   describe('createDependentsMessage', () => {
     it('should generate a resolved message', () => {
-      const result = (updater as unknown as MockIssueUpdater).createDependentsMessage();
+      const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
       expect(result).toContain('All Dependents Resolved.');
     });
 
     it('should generate a dependents list', () => {
-      updater.dependents = newDeps;
-      const result = (updater as unknown as MockIssueUpdater).createDependentsMessage();
+      updater.dependents = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
 
       expect(result).toContain('Blocked Dependents Found:');
-      newDeps.forEach((dependency) => {
+      testDependencies.forEach((dependency) => {
         const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
         expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);
       });
@@ -279,42 +256,71 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
   });
 
   describe('postComment', () => {
-    it('should successfully post a comment', () => {
-      // TODO: implement case
+    it('should successfully post a comment', async () => {
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).postComment('Mock Comment');
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Posting a comment to ${CURRENT_ISSUE_TYPE} #${testIssue.number}...`)
+      );
     });
 
-    it('should throw an error', () => {
-      // TODO: implement case
+    it('should throw an error', async () => {
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 500);
+
+      const { error, originalError } = await getCheckerError<CheckerError>(
+        (updater as unknown as IssueUpdaterInterface).postComment('Mock Comment')
+      );
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Posting a comment to ${CURRENT_ISSUE_TYPE} #${testIssue.number}...`)
+      );
+      expect(error.message).toBe(`Failed to post a comment on ${CURRENT_ISSUE_TYPE} #${testIssue.number}.`);
+      // Assert for the constructor's name because instanceOf is unreliable in this environment.
+      expect(originalError.constructor.name).toBe('RequestError');
     });
   });
 
   describe('addLabels', () => {
-    it('should successfully add labels', () => {
-      // TODO: implement case
+    it('should successfully add labels', async () => {
+      const labels = ['blocked'];
+
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).addLabels(labels);
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Adding labels: ${labels.join(', ')}`));
     });
 
     it('should throw an error', async () => {
-      const testUpdater = new IssueUpdater(mockedOctokit, github.context);
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
       const labels = ['blocked'];
 
-      mockApi.mockIssuePostRequest('test-owner', 'test-repo', github.context.issue.number, 500);
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 500);
 
       await expect(
         (testUpdater as unknown as { addLabels: (labels: string[]) => Promise<void> }).addLabels(labels)
-      ).rejects.toThrow('Failed to add 1 label(s)');
+      ).rejects.toThrow(`Failed to add ${labels.length} label(s)`);
     });
   });
 
   describe('removeLabels', () => {
-    it('should successfully remove labels', () => {
-      // TODO: implement case
+    it('should successfully remove labels', async () => {
+      const labels = ['blocked'];
+
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).removeLabels(labels);
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Removing labels: ${labels.join(', ')}`));
     });
 
     it('should throw an error', async () => {
-      const testUpdater = new IssueUpdater(mockedOctokit, github.context);
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
       const labels = ['blocked'];
 
-      mockApi.mockIssueDeleteRequest('test-owner', 'test-repo', github.context.issue.number, 500);
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 500);
 
       await expect(
         (testUpdater as unknown as { removeLabels: (labels: string[]) => Promise<void> }).removeLabels(labels)
@@ -322,10 +328,10 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
     });
 
     it('should not throw if removing a non-existing label', async () => {
-      const testUpdater = new IssueUpdater(mockedOctokit, github.context);
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
       const labels = ['blocked'];
 
-      mockApi.mockIssueDeleteRequest('test-owner', 'test-repo', github.context.issue.number, 404);
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 404);
 
       await expect(
         (testUpdater as unknown as { removeLabels: (labels: string[]) => Promise<void> }).removeLabels(labels)
@@ -333,47 +339,13 @@ This ${CURRENT_ISSUE_TYPE} should not be ${CURRENT_IS_PR ? 'merged' : 'resolved'
     });
   });
 
-  describe('validateContext', () => {
-    const originalEventName = github.context.eventName;
-
-    afterEach(() => {
-      // Restore original event name after each test
-      github.context.eventName = originalEventName;
-    });
-
-    it('should not throw an error', () => {
-
-      expect(() => {
-        (updater as unknown as { validateContext: () => void }).validateContext();
-      }).not.toThrow();
-    });
-
-    it('should throw an error', () => {
-      const eventName = 'push';
-      github.context.eventName = eventName;
-
-      expect(() => {
-        (updater as unknown as { validateContext: () => void }).validateContext();
-      }).toThrow(`Event name '${eventName}' is not supported. Expected 'pull_request' or 'issues'.`);
-    });
-  });
-
   describe('Edge Cases', () => {
-    const originalEventName = github.context.eventName;
-
     describe('with issues event type', () => {
-      beforeEach(() => {
-        github.context.eventName = 'issues';
-        vi.clearAllMocks();
-      });
-
-      afterEach(() => {
-        github.context.eventName = originalEventName;
-      });
-
       it('should use correct type in messages', () => {
+        const { pull_request: _, ...issueWithoutPR } = testIssue;
+
         const result = (
-          new IssueUpdater(mockedOctokit, github.context) as unknown as MockIssueUpdater
+          new IssueUpdater(mockedOctokit, issueWithoutPR) as unknown as IssueUpdaterInterface
         ).createDependenciesMessage();
 
         expect(result).toContain('This Issue has no blocking dependencies.');

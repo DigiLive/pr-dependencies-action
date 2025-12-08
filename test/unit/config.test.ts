@@ -10,9 +10,9 @@ describe('config', () => {
     delete process.env.INPUT_KEY_PHRASES;
   });
 
-  describe('PR_LABEL', () => {
+  describe('BLOCKED_LABEL', () => {
     beforeEach(() => {
-      delete process.env.INPUT_LABEL;
+      delete process.env.INPUT_BLOCKED_LABEL;
       vi.resetModules();
     });
 
@@ -23,10 +23,30 @@ describe('config', () => {
     });
 
     it('should use provided input value', async () => {
-      process.env.INPUT_LABEL = 'dependant';
+      process.env.INPUT_BLOCKED_LABEL = 'dependent';
       const config = await import('@/config.js');
 
-      expect(config.BLOCKED_LABEL).toBe('dependant');
+      expect(config.BLOCKED_LABEL).toBe('dependent');
+    });
+  });
+
+  describe('BLOCKING_LABEL', () => {
+    beforeEach(() => {
+      delete process.env.INPUT_BLOCKING_LABEL;
+      vi.resetModules();
+    });
+
+    it('should use default value when no input is provided', async () => {
+      const config = await import('@/config.js');
+
+      expect(config.BLOCKING_LABEL).toBe('blocking');
+    });
+
+    it('should use provided input value', async () => {
+      process.env.INPUT_BLOCKING_LABEL = 'dependency';
+      const config = await import('@/config.js');
+
+      expect(config.BLOCKING_LABEL).toBe('dependency');
     });
   });
 

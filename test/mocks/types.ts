@@ -1,7 +1,31 @@
-import { IssueData, PullRequestData } from '@/types.js';
+import { DependencyTag, IssueData, PullRequestData } from '@/types.js';
 import nock from 'nock';
 import { Octokit } from '@octokit/rest';
 import * as github from '@actions/github';
+
+/**
+ * Defines the interface for a mock GitHub API client used in tests.
+ * This type provides methods to mock GitHub API responses and manage the mock server state.
+ *
+ * @property {Function} mockGetPR - Mocks a GitHub API Get call to fetch a pull request.
+ * @property {Function} mockGetIssue - Mocks a GitHub API Get call to fetch an issue.
+ * @property {Function} mockListComments - Mocks a GitHub Get API call to fetch issue comments.
+ * @property {Function} mockIssuePostRequest - Mocks a GitHub Post API calls for issues.
+ * @property {Function} mockIssueDeleteRequest - Mocks a GitHub Delete API calls for issues.
+ * @property {Function} cleanup - Cleans up any active mocks and restores the original implementation.
+ * @property {Function} done - Finalizes the mock setup and verifies all expected calls were made.
+ *
+ * @see https://github.com/nock/nock for more information on HTTP mocking.
+ */
+export type MockGitHubAPI = {
+  mockGetPR: (owner: string, repo: string, pull_number: number, response: MockPRResponse) => nock.Scope;
+  mockGetIssue: (owner: string, repo: string, issue_number: number, response: MockIssueResponse) => nock.Scope;
+  mockListComments: (owner: string, repo: string, issue_number: number, response: MockListCommentsResponse) => nock.Scope;
+  mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
+  mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
+  cleanup: () => void;
+  done: () => void;
+};
 
 /**
  * Represents a mocked response for a GitHub Pull pulls API Get call.
@@ -60,35 +84,23 @@ export type MockListCommentsResponse = {
   data?: IssueComment[];
 };
 
-/**
- * Defines the interface for a mock GitHub API client used in tests.
- * This type provides methods to mock GitHub API responses and manage the mock server state.
- *
- * @property {Function} mockGetPR - Mocks a GitHub API Get call to fetch a pull request.
- * @property {Function} mockGetIssue - Mocks a GitHub API Get call to fetch an issue.
- * @property {Function} mockListComments - Mocks a GitHub Get API call to fetch issue comments.
- * @property {Function} mockIssuePostRequest - Mocks a GitHub Post API calls for issues.
- * @property {Function} mockIssueDeleteRequest - Mocks a GitHub Delete API calls for issues.
- * @property {Function} cleanup - Cleans up any active mocks and restores the original implementation.
- * @property {Function} done - Finalizes the mock setup and verifies all expected calls were made.
- *
- * @see https://github.com/nock/nock for more information on HTTP mocking.
- */
-export type MockGitHubAPI = {
-  mockGetPR: (owner: string, repo: string, pull_number: number, response: MockPRResponse) => nock.Scope;
-  mockGetIssue: (owner: string, repo: string, issue_number: number, response: MockIssueResponse) => nock.Scope;
-  mockListComments: (owner: string, repo: string, issue_number: number, response: MockListCommentsResponse) => nock.Scope;
-  mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
-  mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
-  cleanup: () => void;
-  done: () => void;
-};
 
-export interface MockPRDependencyChecker {
+/**
+ * Represents the sourcePRDependencyChecker object used in tests.
+ *
+ * Used for type assertions in tests to access private methods.
+ */
+export interface PRDependencyChecker {
+  // Private Methods
   fetchPullRequest(id: string): Promise<PullRequestData>;
 }
 
-export interface MockIssueUpdater {
+/**
+ * Represents the sourceIssueUpdater object used in tests.
+ *
+ * Used for type assertions in tests to access private methods.
+ */
+export interface IssueUpdaterInterface {
   // Static Properties
   readonly SIGNATURE: string;
 
@@ -97,13 +109,13 @@ export interface MockIssueUpdater {
   dependents: IssueData[];
 
   // Private Properties
-  readonly context: typeof github.context;
+  readonly issue: IssueData;
   readonly issueType: string;
   readonly octokit: Octokit;
-  lastBotComment: { body?: string } | undefined;
 
   // Public Methods
   addLabels(labels: string[]): Promise<void>;
+  findLastBotComment(issue: IssueData): Promise<{ body?: string } | undefined>;
   removeLabels(labels: string[]): Promise<void>;
   updateIssue(): Promise<void>;
 
@@ -111,8 +123,7 @@ export interface MockIssueUpdater {
   createCommentBody(): string;
   createDependenciesMessage(): string;
   createDependentsMessage(): string;
-  findLastBotComment(refresh?: boolean): Promise<{ body?: string } | undefined>;
+  getIssueInfo(issue: IssueData): DependencyTag;
   handleDependencyUpdate(): Promise<void>;
   postComment(comment: string): Promise<void>;
-  validateContext(): void;
 }

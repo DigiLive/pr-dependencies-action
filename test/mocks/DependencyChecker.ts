@@ -12,6 +12,7 @@ export const mockEvaluate = vi.fn().mockResolvedValue(undefined);
  * A mock implementation of the DependencyChecker class.
  */
 export class MockDependencyChecker {
+  // noinspection JSUnusedGlobalSymbols - Used for mocking the DependencyChecker.evaluate() method at the unit test of main.ts.
   evaluate = mockEvaluate;
   constructor(_octokit: Octokit) {}
 }

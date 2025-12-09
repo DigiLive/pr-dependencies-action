@@ -1,7 +1,6 @@
 import { DependencyTag, IssueData, PullRequestData } from '@/types.js';
 import nock from 'nock';
 import { Octokit } from '@octokit/rest';
-import * as github from '@actions/github';
 
 /**
  * Defines the interface for a mock GitHub API client used in tests.
@@ -20,7 +19,12 @@ import * as github from '@actions/github';
 export type MockGitHubAPI = {
   mockGetPR: (owner: string, repo: string, pull_number: number, response: MockPRResponse) => nock.Scope;
   mockGetIssue: (owner: string, repo: string, issue_number: number, response: MockIssueResponse) => nock.Scope;
-  mockListComments: (owner: string, repo: string, issue_number: number, response: MockListCommentsResponse) => nock.Scope;
+  mockListComments: (
+    owner: string,
+    repo: string,
+    issue_number: number,
+    response: MockListCommentsResponse
+  ) => nock.Scope;
   mockIssuePostRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
   mockIssueDeleteRequest: (owner: string, repo: string, issue_number: number, response: number) => nock.Scope;
   cleanup: () => void;
@@ -83,17 +87,6 @@ export type MockListCommentsResponse = {
   code: number;
   data?: IssueComment[];
 };
-
-
-/**
- * Represents the sourcePRDependencyChecker object used in tests.
- *
- * Used for type assertions in tests to access private methods.
- */
-export interface PRDependencyChecker {
-  // Private Methods
-  fetchPullRequest(id: string): Promise<PullRequestData>;
-}
 
 /**
  * Represents the sourceIssueUpdater object used in tests.

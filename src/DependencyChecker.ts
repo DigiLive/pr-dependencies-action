@@ -24,7 +24,7 @@ import { CheckerError } from '@/CheckerError.js';
  * To find out the pull request id, use the "List pull requests" endpoint.
  *
  * @example
- * const checker = new PRDependencyChecker(octokit);
+ * const checker = new DependencyChecker(octokit);
  * await checker.evaluate();
  */
 export class DependencyChecker {
@@ -89,11 +89,8 @@ export class DependencyChecker {
           const dependentUpdater = new IssueUpdater(this.octokit, dependent);
 
           lastBotComment = await dependentUpdater.findLastBotComment(dependent);
-          const childDependents = await this.getDependents(lastBotComment?.body ?? '');
-          const childDependencies = await this.getDependencies(dependent.body ?? '');
-
-          dependentUpdater.dependencies = childDependencies;
-          dependentUpdater.dependents = childDependents;
+          dependentUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
+          dependentUpdater.dependencies = await this.getDependencies(dependent.body ?? '');
 
           await dependentUpdater.updateIssue();
         }
@@ -106,11 +103,8 @@ export class DependencyChecker {
           let dependencyUpdater = new IssueUpdater(this.octokit, dependency);
 
           lastBotComment = await dependencyUpdater.findLastBotComment(dependency);
-          const childDependents = await this.getDependents(lastBotComment?.body ?? '');
-          const childDependencies = await this.getDependencies(dependency.body ?? '');
-
-          dependencyUpdater.dependencies = childDependencies;
-          dependencyUpdater.dependents = childDependents;
+          dependencyUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
+          dependencyUpdater.dependencies = await this.getDependencies(dependency.body ?? '');
 
           await dependencyUpdater.updateIssue();
         }

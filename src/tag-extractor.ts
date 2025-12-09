@@ -14,29 +14,60 @@ import { getIssueTypes, getKeyPhrases } from './config.js';
 const getHostName = (): string => new URL(process.env.GITHUB_SERVER_URL || 'https://github.com').hostname;
 
 /**
- * Returns an object containing regex patterns for extracting dependency tags from a string.
+ * Returns an object containing regex patterns and handlers for extracting dependency tags from a string.
  *
  * The returned object contains the following properties:
- * - `quickLink`: A pattern for matching GitHub quick links in the format of `#123`.
- * - `partialLink`: A pattern for matching GitHub partial links in the format of `owner/repo#123`.
- * - `partialUrl`: A pattern for matching GitHub partial URLs in the format of `owner/repo/issues/123`.
- * - `fullUrl`: A pattern for matching GitHub full URLs in the format of `https://github.com/owner/repo/issues/123`.
- * - `markdown`: A pattern for matching Markdown links in the format of `[text](url)`.
+ * - `intraRepo`: For matching GitHub's intra-repo shorthands. `#123`.
+ * - `crossRepo`: For matching GitHub's cross-repo shorthands. `owner/repo#123`.
+ * - `path`: For matching GitHub path shorthands in the format of `owner/repo/issues/123`.
+ * - `url`: For matching GitHub URLs in the format of `https://github.com/owner/repo/issues/123`.
  *
- * @todo: The url of a markdown link should contain any of the others
- * @returns {Record<string, RegExp>} An object containing the regex patterns.
+ * @returns {Record<string, {regex: RegExp; handler: (match: RegExpMatchArray) => DependencyTag}>} An object containing the regex patterns and their handlers.
  */
-const getRegexPatterns = (): Record<string, RegExp> =>
-  ({
-    quickLink: /(?:^|\s|\D)(#\d+)(?=\s|#|$)(?<!\S[\w-]+\/[\w-]+#\d+)/g,
-    partialLink: /(?:^|\s)([\w-]+\/[\w-]+#\d+)(?=\s|#|$)/g,
-    partialUrl: new RegExp(`(?:^|\\s)([\\w-]+/[\\w-]+/(?:${getIssueTypes()})/\\d+)(?=\\s|$)`, 'g'),
-    fullUrl: new RegExp(
-      `(?:^|\\s)(https?:\\/\\/${getHostName()}\\/[\\w-]+\\/[\\w-]+\\/(?:${getIssueTypes()})\\/\\d+)(?=\\s|$)`,
+const getRegexPatterns = (): Record<
+  string,
+  { regex: RegExp; handler: (match: RegExpMatchArray) => DependencyTag }
+> => ({
+  intraRepo: {
+    regex: /(?<=^|\s|\()#(\d+)(?=\b)/g,
+    handler: (match: RegExpMatchArray) =>
+      ({
+        owner: github.context.repo.owner,
+        repo: github.context.repo.repo,
+        issue_number: parseInt(match[1], 10),
+      }) as DependencyTag,
+  },
+  crossRepo: {
+    regex: /(?<=^|\s|\()([\w.-]+)\/([\w.-]+)#(\d+)(?=\b)/g,
+    handler: (match: RegExpMatchArray) =>
+      ({
+        owner: match[1],
+        repo: match[2],
+        issue_number: parseInt(match[3], 10),
+      }) as DependencyTag,
+  },
+  path: {
+    regex: new RegExp(`(?<=^|\\s|\\()([\\w.-]+)\\/([\\w.-]+)\\/(${getIssueTypes()})\\/(\\d+)(?=\\b)`, 'g'),
+    handler: (match: RegExpMatchArray) =>
+      ({
+        owner: match[1],
+        repo: match[2],
+        issue_number: parseInt(match[4], 10),
+      }) as DependencyTag,
+  },
+  url: {
+    regex: new RegExp(
+      `(?<=^|\\s|\\()https?:\\/\\/${getHostName()}\\/([\\w.-]+)\\/([\\w.-]+)\\/(${getIssueTypes()})\\/(\\d+)(?=\\b)`,
       'g'
     ),
-    markdown: /\[.*?]\((.*?)\)/g,
-  }) as const;
+    handler: (match: RegExpMatchArray) =>
+      ({
+        owner: match[1],
+        repo: match[2],
+        issue_number: parseInt(match[4], 10),
+      }) as DependencyTag,
+  },
+});
 
 /**
  * Extracts dependent tags from a comment body string.
@@ -58,6 +89,14 @@ export function getDependentsTags(commentBody: string): DependencyTag[] {
 
   while ((match = dependentRegex.exec(dependentsSection[0])) !== null) {
     const issue_number = parseInt(match[1], 10);
+
+    // Skip if the dependency is the same as the current issue/PR.
+    if (issue_number === github.context.issue.number) {
+      // TODO: Decouple from context.
+      core.warning('The Pull Request has itself listed as a dependency.');
+      continue;
+    }
+
     dependentTags.push({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
@@ -65,13 +104,20 @@ export function getDependentsTags(commentBody: string): DependencyTag[] {
     });
   }
 
-  return dependentTags;
+  const uniqueTags = [
+    ...new Map(dependentTags.map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])).values(),
+  ];
+
+  core.debug(`  Found ${uniqueTags.length} unique dependent tags.`);
+
+  return uniqueTags;
 }
 
 /**
- * Extracts dependency tags from a given string.
+ * Extracts dependency tags from a comment body string.
  *
- * This function takes a string and searches for dependency tags using various regex patterns.
+ * This function takes a string and searches for dependency-block and extracts tags from it by using various regex
+ * patterns.
  * It returns an array of DependencyTag objects containing the extracted owner, repo, and number.
  *
  * If the input string is empty, it returns an empty array.
@@ -80,135 +126,81 @@ export function getDependentsTags(commentBody: string): DependencyTag[] {
  * @returns {DependencyTag[]} An array of DependencyTag objects.
  */
 export function getDependencyTags(commentBody: string): DependencyTag[] {
-  if (!commentBody) return [];
+  const dependencyBlock = extractDependencyBlock(commentBody);
 
-  // Process other types of matches. Markdown links are processed first to avoid false positives.
-  const dependencyUrls = [
-    ...extractDependencyUrls(commentBody, getRegexPatterns().markdown),
-    ...extractDependencyUrls(commentBody, getRegexPatterns().quickLink),
-    ...extractDependencyUrls(commentBody, getRegexPatterns().partialLink),
-    ...extractDependencyUrls(commentBody, getRegexPatterns().partialUrl),
-    ...extractDependencyUrls(commentBody, getRegexPatterns().fullUrl),
-  ];
+  const patterns = Object.values(getRegexPatterns());
+  const tags: DependencyTag[] = [];
 
-  return compileDependencyTags(dependencyUrls);
-}
+  core.debug(`Extracting tags from text: ${dependencyBlock.substring(0, 50)}...`);
 
-/**
- * Takes an array of dependency URLs and returns an array of DependencyTag objects.
- *
- * The function takes each dependency URL and attempts to extract the owner, repo, and number from it.
- * If the URL is invalid, it logs a warning and skips it.
- *
- * @param {string[]} dependencyUrls - An array of dependency URLs.
- * @returns {DependencyTag[]} An array of DependencyTag objects.
- */
-function compileDependencyTags(dependencyUrls: string[]): DependencyTag[] {
-  core.debug(`Compiling ${dependencyUrls.length} dependency URLs...`);
-
-  const allTags = dependencyUrls.flatMap((url) => {
-    try {
-      const match = url.match(
-        new RegExp(
-          `^(?:https?:\\/\\/[^/]+\\/)?([^/]+)\\/([^/#]+)(?:\\/(?:${getIssueTypes()})\\/|#)(\\d+)|#?(\\d+)$`,
-          'i'
-        )
-      );
-
-      if (match) {
-        // Skip if the dependency is the same as the current PR.
-        if (github.context.issue.number === parseInt(match[4] ?? match[3], 10)) {
-          core.warning('The Pull Request has itself listed as a dependency.');
-          return [];
-        }
-
-        if (match[4]) {
-          return [
-            {
-              owner: github.context.repo.owner,
-              repo: github.context.repo.repo,
-              issue_number: parseInt(match[4], 10),
-            },
-          ];
-        }
-
-        return [
-          {
-            owner: match[1],
-            repo: match[2],
-            issue_number: parseInt(match[3], 10),
-          },
-        ];
-      }
-
-      core.warning(`  Skipping invalid dependency URL format: ${url}`);
-      return [];
-    } catch (error) {
-      core.warning(`  Error processing dependency URL '${url}': ${(error as Error).message}`);
-      return [];
-    }
-  });
-
-  // Remove duplicates
-  const uniqueTags = new Map<string, DependencyTag>();
-  for (const tag of allTags) {
-    const key = `${tag.owner}/${tag.repo}#${tag.issue_number}`;
-    if (!uniqueTags.has(key)) {
-      uniqueTags.set(key, tag);
+  for (const { regex, handler } of patterns) {
+    for (const match of dependencyBlock.matchAll(regex)) {
+      tags.push({ ...handler(match) });
     }
   }
 
-  core.debug(`  Found ${uniqueTags.size} unique dependency tags.`);
+  // De-duplicate and remove current issue
+  const uniqueTags = [
+    ...new Map(
+      tags
+        .filter((tag) => {
+          if (tag.issue_number === github.context.issue.number) {
+            core.warning(
+              `Skipping dependency tag that matches the current issue: ${tag.owner}/${tag.repo}#${tag.issue_number}`
+            );
+            return false;
+          }
 
-  return Array.from(uniqueTags.values());
+          return true;
+        })
+        .map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])
+    ).values(),
+  ];
+
+  core.debug(`Found ${uniqueTags.length} unique dependency tags.`);
+
+  return uniqueTags;
 }
 
 /**
- * Extracts dependency URLs from a given string.
+ * Extracts the dependency block from a given comment body string.
  *
- * The function processes the input string line by line, looking for lines that start with a key phrase and then
- * extracting URLs behind it until a blank line is encountered or the end of the string is reached.
+ * This function takes a comment body string and searches for the dependency block,
+ * which is the text between key phrases such as "Depends on:".
+ * It returns the extracted dependency block as a string.
  *
- * The extracted URLs are returned as an array of strings.
- *
- * @param {string} commentBody - The string to search for dependency URLs.
- * @param {RegExp} pattern - The URL regex pattern to match against the input string.
- * @returns {string[]} An array of dependency URLs.
+ * @param {string} commentBody - The comment body string to search for the dependency block.
+ * @returns {string} The extracted dependency block as a string.
  */
-function extractDependencyUrls(commentBody: string, pattern: RegExp): string[] {
-  const keyPhraseRegex = new RegExp(`^(?:${getKeyPhrases()}):`, 'i');
-  const dependencyUrls: string[] = [];
+function extractDependencyBlock(commentBody: string): string {
+  if (!commentBody) return '';
 
-  core.debug(`Extracting dependency URLs from text: ${commentBody.substring(0, 50)}...`);
+  const keyPhraseRegex = new RegExp(`^(?:${getKeyPhrases()}):`, 'i');
+  let dependencyBlock = '';
+
+  core.debug(`Extracting dependency block from text: ${commentBody.substring(0, 50)}...`);
 
   let insideDependencyBlock = false;
-
   const textLines: string[] = commentBody.split('\n');
 
   for (let line of textLines) {
     line = line.trim();
 
-    if (line == '') {
+    if (line === '') {
       insideDependencyBlock = false;
       continue;
     }
 
-    line.match(keyPhraseRegex);
     if (keyPhraseRegex.test(line)) {
       insideDependencyBlock = true;
     }
 
     if (insideDependencyBlock) {
-      let match;
-
-      pattern.lastIndex = 0;
-      while ((match = pattern.exec(line)) !== null) {
-        dependencyUrls.push(match[1]);
-      }
+      dependencyBlock += line + '\n';
     }
   }
 
-  core.debug(`  Extracted ${dependencyUrls.length} dependency URLs.`);
+  core.debug(`Dependency Block Extracted.`);
 
-  return dependencyUrls;
+  return dependencyBlock;
 }

@@ -11,7 +11,6 @@ export interface DependencyTag {
 
 /**
  * The exact TypeScript type for the Pull Request object returned by octokit.rest.pulls.get().
- * todo: Use type from @octokit/types instead?
  */
 export type PullRequestData = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}']['response']['data'];
 
@@ -23,13 +22,15 @@ export type PullRequestData = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_n
  * You can identify pull requests by the pull_request key.
  * Be aware that the id of a pull request returned from "Issues" endpoints will be an issue id.
  * To find out the pull request id, use the "List pull requests" endpoint.
- * todo: Use type from @octokit/types instead?
  */
 export type IssueData = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}']['response']['data'];
 
+/**
+ * Represents an IssueData object that is actually a Pull Request.
+ *
+ * This type extends the IssueData type with the necessary properties for a Pull Request.
+ */
 export type PullRequestFromIssueData = IssueData & {
-  // When it's a PR, the pull_request property is guaranteed to be an object.
-  // We use this to narrow the type.
   pull_request: NonNullable<IssueData['pull_request']>;
 };
 

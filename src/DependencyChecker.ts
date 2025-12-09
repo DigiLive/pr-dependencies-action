@@ -4,7 +4,7 @@ import { IssueUpdater } from './IssueUpdater.js';
 import { getDependencyTags, getDependentsTags } from './tag-extractor.js';
 import { DependencyTag, IssueData } from './types.js';
 import { Octokit } from '@octokit/rest';
-import { CheckerError } from '@/CheckerError.js';
+import { CheckerError } from './CheckerError.js';
 
 /**
  * A class that checks and manages dependencies/dependents of the issue defined in the GitHub context.

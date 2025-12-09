@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@actions/core';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
-import { IssueUpdater } from '@/IssueUpdater.js';
-import { IssueData } from '@/types.js';
+import { IssueUpdater } from '../../src/IssueUpdater.js';
+import { APIIssue } from '../../src/types.js';
 import { IssueUpdaterInterface } from '../mocks/types.js';
-import { CheckerError } from '@/CheckerError.js';
+import { CheckerError } from '../../src/CheckerError.js';
 import { constants } from '../constants/constants.js';
 import { createTestBotComment } from '../fixtures/comments.js';
 import { testDependencies, testIssue } from '../fixtures/issues.js';
@@ -144,7 +144,7 @@ describe('IssueUpdater', () => {
   });
 
   describe('findLastBotComment', () => {
-    let thisIssue: IssueData;
+    let thisIssue: APIIssue;
 
     beforeEach(() => {
       thisIssue = (updater as unknown as IssueUpdaterInterface).issue;

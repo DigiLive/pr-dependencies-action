@@ -2,9 +2,10 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { IssueUpdater } from './IssueUpdater.js';
 import { getDependencyTags, getDependentsTags } from './tag-extractor.js';
-import { DependencyTag, IssueData } from './types.js';
+import { DependencyTag, APIIssue, APIPullRequest } from './types.js';
 import { Octokit } from '@octokit/rest';
 import { CheckerError } from './CheckerError.js';
+import { Issue, PullRequest } from '@octokit/webhooks-types';
 
 /**
  * A class that checks and manages dependencies/dependents of the issue defined in the GitHub context.
@@ -30,7 +31,7 @@ import { CheckerError } from './CheckerError.js';
 export class DependencyChecker {
   private readonly octokit: Octokit;
   private readonly issueType: string;
-  private readonly issue: IssueData;
+  private readonly issue: Issue | PullRequest;
   private indent: number = 0;
 
   /**
@@ -45,7 +46,7 @@ export class DependencyChecker {
     this.issueType = github.context.eventName === 'pull_request' ? 'Pull Request' : 'Issue';
     this.issue = (
       github.context.eventName === 'pull_request' ? github.context.payload.pull_request : github.context.payload.issue
-    ) as IssueData;
+    ) as Issue | PullRequest;
   }
 
   /**
@@ -79,8 +80,18 @@ export class DependencyChecker {
 
       await parentUpdater.updateIssue();
 
-      const dependenciesResult = `- Unresolved Dependencies: ${parentDependencies.length} (${parentDependencies.map(issue => `#${issue.number}`).join(' ').trim() || 'none'})`;
-      const dependentsResult = `- Blocked Dependents: ${parentDependents.length} (${parentDependents.map(issue => `#${issue.number}`).join(' ').trim() || 'none'})`;
+      const dependenciesResult = `- Unresolved Dependencies: ${parentDependencies.length} (${
+        parentDependencies
+          .map((issue) => `#${issue.number}`)
+          .join(' ')
+          .trim() || 'none'
+      })`;
+      const dependentsResult = `- Blocked Dependents: ${parentDependents.length} (${
+        parentDependents
+          .map((issue) => `#${issue.number}`)
+          .join(' ')
+          .trim() || 'none'
+      })`;
 
       if (parentDependents.length > 0) {
         core.info(`Evaluating dependents of ${this.issueType} #${this.issue.number}...`);
@@ -114,7 +125,9 @@ export class DependencyChecker {
         );
         core.setOutput('has-dependencies', true);
       } else {
-        core.notice(`\nSummary:\n${dependenciesResult}\n${dependentsResult}\n\nAll dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge!' : 'close!'}`);
+        core.notice(
+          `\nSummary:\n${dependenciesResult}\n${dependentsResult}\n\nAll dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge!' : 'close!'}`
+        );
         core.setOutput('has-dependencies', false);
       }
     } catch (error) {
@@ -142,16 +155,16 @@ export class DependencyChecker {
    * If the fetch is successful, it will return the issue data as a Promise.
    *
    * @param {DependencyTag} tag - The tag of the issue to fetch.
-   * @returns {Promise<IssueData>} A promise that resolves with the issue data.
+   * @returns {Promise<(APIIssue | APIPullRequest)>} A promise that resolves with the issue data.
    * @throws {Error} If the fetch failed.
    */
-  private async fetchIssue(tag: DependencyTag): Promise<IssueData> {
+  private async fetchIssue(tag: DependencyTag): Promise<(APIIssue | APIPullRequest)> {
     core.debug(`Fetching issue #${tag.issue_number}`);
 
     try {
       const response = await this.octokit.rest.issues.get(tag);
 
-      return response.data as IssueData;
+      return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       core.debug(`Failed to fetch issue #${tag.issue_number}: ${errorMessage}`);
@@ -169,11 +182,11 @@ export class DependencyChecker {
    * If the issue is not closed, it will be added to the list of dependencies.
    *
    * @param {string} commentBody - The commentBody to analyze for dependencies.
-   * @returns {Promise<IssueData[]>} A promise that resolves with the list of dependencies.
+   * @returns {Promise<(APIIssue | APIPullRequest)[]>} A promise that resolves with the list of dependencies.
    */
-  private async getDependencies(commentBody: string): Promise<IssueData[]> {
+  private async getDependencies(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
     const tags = getDependencyTags(commentBody);
-    const dependencies: IssueData[] = [];
+    const dependencies: (APIIssue | APIPullRequest)[] = [];
 
     core.info(`${this.getIndent()}Analyzing ${tags.length} dependencies...`);
     this.indent++;
@@ -211,11 +224,11 @@ export class DependencyChecker {
    * If the issue is not closed, it will be added to the list of dependents.
    *
    * @param {string} commentBody - The commentBody to analyze for dependents.
-   * @returns {Promise<IssueData[]>} A promise that resolves with the list of dependents.
+   * @returns {Promise<(APIIssue | APIPullRequest)[]>} A promise that resolves with the list of dependents.
    */
-  private async getDependents(commentBody: string): Promise<IssueData[]> {
+  private async getDependents(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
     const tags = getDependentsTags(commentBody);
-    const dependents: IssueData[] = [];
+    const dependents: (APIIssue | APIPullRequest)[] = [];
 
     core.info(`${this.getIndent()}Analyzing ${tags.length} dependents...`);
     this.indent++;
@@ -255,6 +268,10 @@ export class DependencyChecker {
       throw new CheckerError(
         `Event name '${github.context.eventName}' is not supported. Expected 'pull_request' or 'issues'.`
       );
+    }
+
+    if (!github.context.payload.pull_request && !github.context.payload.issue) {
+      throw new CheckerError("Payload not found. Expected 'pull_request' or 'issue'.");
     }
   }
 }

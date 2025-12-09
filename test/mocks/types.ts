@@ -1,4 +1,4 @@
-import { DependencyTag, IssueData, PullRequestData } from '@/types.js';
+import { DependencyTag, APIIssue, APIPullRequest } from '../../src/types.js';
 import nock from 'nock';
 import { Octokit } from '@octokit/rest';
 
@@ -36,13 +36,13 @@ export type MockGitHubAPI = {
  * Used in tests to simulate GitHub API responses when fetching PR data.
  *
  * @property {number} code - The HTTP status code to simulate (e.g., 200 for success, 404 for not found).
- * @property {Partial<PullRequestData>} [data] - Partial PR data that will be merged with default values in tests.
+ * @property {Partial<APIPullRequest>} [data] - Partial PR data that will be merged with default values in tests.
  *
  * @see https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request
  */
 export interface MockPRResponse {
   code: number;
-  data?: Partial<PullRequestData>;
+  data?: Partial<APIPullRequest>;
 }
 
 /**
@@ -50,13 +50,13 @@ export interface MockPRResponse {
  * Used in tests to simulate GitHub API responses when fetching issue data.
  *
  * @property {number} code - The HTTP status code to simulate (e.g., 200 for success, 404 for not found).
- * @property {Partial<IssueData>} [data] - Partial issue data that will be merged with default values in tests.
+ * @property {Partial<APIIssue>} [data] - Partial issue data that will be merged with default values in tests.
  *
  * @see https://docs.github.com/en/rest/issues/issues#get-an-issue
  */
 export interface MockIssueResponse {
   code: number;
-  data?: Partial<IssueData>;
+  data?: Partial<APIIssue>;
 }
 
 /**
@@ -98,17 +98,17 @@ export interface IssueUpdaterInterface {
   readonly SIGNATURE: string;
 
   // Public Properties
-  dependencies: IssueData[];
-  dependents: IssueData[];
+  dependencies: APIIssue[];
+  dependents: APIIssue[];
 
   // Private Properties
-  readonly issue: IssueData;
+  readonly issue: APIIssue;
   readonly issueType: string;
   readonly octokit: Octokit;
 
   // Public Methods
   addLabels(labels: string[]): Promise<void>;
-  findLastBotComment(issue: IssueData): Promise<{ body?: string } | undefined>;
+  findLastBotComment(issue: APIIssue): Promise<{ body?: string } | undefined>;
   removeLabels(labels: string[]): Promise<void>;
   updateIssue(): Promise<void>;
 
@@ -116,7 +116,7 @@ export interface IssueUpdaterInterface {
   createCommentBody(): string;
   createDependenciesMessage(): string;
   createDependentsMessage(): string;
-  getIssueInfo(issue: IssueData): DependencyTag;
+  getIssueInfo(issue: APIIssue): DependencyTag;
   handleDependencyUpdate(): Promise<void>;
   postComment(comment: string): Promise<void>;
 }

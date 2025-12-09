@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDependencyTags, getDependentsTags } from '@/tag-extractor.js';
+import { getDependencyTags, getDependentsTags } from '../../src/tag-extractor.js';
 import * as core from '@actions/core';
 import { createTestBotComment } from '../fixtures/comments.js';
 import * as github from '@actions/github';

@@ -17,14 +17,14 @@ describe('config', () => {
     });
 
     it('should use default value when no input is provided', async () => {
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.BLOCKED_LABEL).toBe('blocked');
     });
 
     it('should use provided input value', async () => {
       process.env.INPUT_BLOCKED_LABEL = 'dependent';
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.BLOCKED_LABEL).toBe('dependent');
     });
@@ -37,14 +37,14 @@ describe('config', () => {
     });
 
     it('should use default value when no input is provided', async () => {
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.BLOCKING_LABEL).toBe('blocking');
     });
 
     it('should use provided input value', async () => {
       process.env.INPUT_BLOCKING_LABEL = 'dependency';
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.BLOCKING_LABEL).toBe('dependency');
     });
@@ -57,14 +57,14 @@ describe('config', () => {
     });
 
     it('should return default key phrases when no input provided', async () => {
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.getKeyPhrases()).toBe('depends on|blocked by');
     });
 
     it('should use provided key phrases from input', async () => {
       process.env.INPUT_PHRASES = 'waits on|requires';
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.getKeyPhrases()).toBe('waits on|requires');
     });
@@ -77,13 +77,13 @@ describe('config', () => {
 
     it('should escape special regex characters', async () => {
       process.env.INPUT_PHRASES = 'foo(bar).baz';
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       expect(config.getKeyPhrases()).toContain('foo\\(bar\\)\\.baz');
     });
 
     it('should return cached value on subsequent calls', async () => {
-      const config = await import('@/config.js');
+      const config = await import('../../src/config.js');
 
       // Start spying on the replace function just before the first call to getIssueTypes.
       const replaceSpy = vi.spyOn(String.prototype, 'replace');

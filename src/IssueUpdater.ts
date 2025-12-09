@@ -1,5 +1,6 @@
 import * as core from '@actions/core';
-import { DependencyTag, isPullRequest, IssueData } from './types.js';
+import * as github from '@actions/github';
+import { APIIssue, APIPullRequest, DependencyTag, GitHubIssue, isPullRequest } from './types.js';
 import { Octokit } from '@octokit/rest';
 import { BLOCKED_LABEL, BLOCKING_LABEL } from './config.js';
 import { CheckerError } from './CheckerError.js';
@@ -17,19 +18,19 @@ import { CheckerError } from './CheckerError.js';
  */
 class IssueUpdater {
   private static readonly SIGNATURE = '<!-- dependency-checker-action -->';
-  public dependencies: IssueData[] = [];
-  public dependents: IssueData[] = [];
+  public dependencies: (APIIssue | APIPullRequest)[] = [];
+  public dependents: (APIIssue | APIPullRequest)[] = [];
   private readonly octokit: Octokit;
-  private readonly issue: IssueData;
+  private readonly issue: GitHubIssue;
   private readonly issueType: string;
 
   /**
    * Initializes a new instance.
    *
    * @param {Octokit} octokit - An Octokit instance.
-   * @param {IssueData} issue - The issue to update.
+   * @param {GitHubIssue} issue - The issue to update.
    */
-  constructor(octokit: Octokit, issue: IssueData) {
+  constructor(octokit: Octokit, issue: GitHubIssue) {
     this.octokit = octokit;
     this.issue = issue;
     this.issueType = isPullRequest(issue) ? 'Pull Request' : 'Issue';
@@ -69,10 +70,10 @@ class IssueUpdater {
    * created by the 'github-actions[bot]' user that contains this class's signature.
    * If such a comment is found, it is returned. Otherwise, the function returns undefined.
    *
-   * @param {IssueData} issue The issue to find the last bot comment for.
+   * @param {GitHubIssue} issue The issue to find the last bot comment for.
    * @returns {Promise<{body?: string} | undefined>} - a promise that resolves with the last bot comment.
    */
-  async findLastBotComment(issue: IssueData): Promise<{ body?: string } | undefined> {
+  async findLastBotComment(issue: GitHubIssue): Promise<{ body?: string } | undefined> {
     try {
       const { data: comments } = await this.octokit.rest.issues.listComments(this.getIssueInfo(issue));
 
@@ -93,15 +94,21 @@ class IssueUpdater {
   /**
    * Extracts repository and issue number from a given issue.
    *
-   * @param {IssueData} issue - The issue to extract information from.
+   * @param {GitHubIssue} issue - The issue to extract information from.
    * @returns {DependencyTag} An object containing repository and issue information.
    */
-  private getIssueInfo(issue: IssueData): DependencyTag {
-    const parts = issue.repository_url.split('/');
+  private getIssueInfo(issue: GitHubIssue): DependencyTag {
+    if ('repository' in issue) {
+      return {
+        owner: issue.repository!.owner.login,
+        repo: issue.repository!.name,
+        issue_number: issue.number,
+      };
+    }
 
     return {
-      owner: parts[parts.length - 2],
-      repo: parts[parts.length - 1],
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
       issue_number: issue.number,
     };
   }

@@ -3,7 +3,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
 import { mockBotCommentParams } from '../mocks/IssueUpdater.js';
-import { DependencyChecker } from '@/DependencyChecker.js';
+import { DependencyChecker } from '../../src/DependencyChecker.js';
 
 describe('DependencyChecker', () => {
   let mockApi: ReturnType<typeof createMockGithubAPI>;

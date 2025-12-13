@@ -1,5 +1,5 @@
-name: 'PR Dependency Check'
-description: 'Verify PR dependencies are merged or closed'
+name: 'Dependency Checker'
+description: 'Checks if dependencies or dependents are defined for an issue and if they are merged or closed.'
 author: 'Ferry Cools'
 branding:
   icon: alert-triangle
@@ -9,13 +9,17 @@ runs:
   main: 'dist/main.js'
 inputs:
   phrases:
-    description: 'Pipe-separated list of key phrases to identify dependency declarations'
+    description: 'Pipe-separated list of key phrases to identify dependency declarations.'
     required: false
     default: 'depends on|blocked by'
-  label:
-    description: 'Label to add to PR when dependencies are found'
+  blocked_label:
+    description: 'Label to add to an issue when unresolved dependencies are defined.'
     required: false
     default: 'blocked'
+  blocking_label:
+    description: 'Label to add to an issue when unresolved dependents are defined.'
+    required: false
+    default: 'blocking'
 outputs:
   has-dependencies:
     description: 'Whether any dependencies were found'

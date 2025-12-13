@@ -88,7 +88,14 @@ const configuration = [
     rules: {
       ...vitest.configs.recommended.rules,
       'vitest/max-nested-describe': ['warn', { max: 3 }],
-      '@typescript-eslint/no-unused-vars': ['warn', { args: 'all', argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
 

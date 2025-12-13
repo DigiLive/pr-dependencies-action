@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { IssueUpdater } from './IssueUpdater.js';
 import { getDependencyTags, getDependentsTags } from './tag-extractor.js';
-import { DependencyTag, APIIssue, APIPullRequest } from './types.js';
+import { APIIssue, APIPullRequest, DependencyTag } from './types.js';
 import { Octokit } from '@octokit/rest';
 import { CheckerError } from './CheckerError.js';
 import { Issue, PullRequest } from '@octokit/webhooks-types';
@@ -32,7 +32,6 @@ export class DependencyChecker {
   private readonly octokit: Octokit;
   private readonly issueType: string;
   private readonly issue: Issue | PullRequest;
-  private indent: number = 0;
 
   /**
    * Initializes a new instance.
@@ -61,91 +60,91 @@ export class DependencyChecker {
    */
   async evaluate(): Promise<void> {
     try {
-      core.info(`Evaluating dependency relationships of ${this.issueType} #${this.issue.number}...`);
-      this.indent++;
+      core.info(`Evaluating dependency relationships of ${this.issueType} #${this.issue.number}.`);
 
       this.validateContext();
 
       const parentUpdater = new IssueUpdater(this.octokit, this.issue);
+      const summary = core.summary.addHeading('Dependency Check Summary');
 
-      core.info(`${this.getIndent()}Getting dependents...`);
+      core.startGroup('Getting Dependents...');
       let lastBotComment = await parentUpdater.findLastBotComment(this.issue);
       const parentDependents = await this.getDependents(lastBotComment?.body ?? '');
+      core.endGroup();
 
       parentUpdater.dependents = parentDependents;
 
-      core.info(`${this.getIndent()}Getting dependencies...`);
+      core.startGroup('Getting Dependencies...');
       const parentDependencies = await this.getDependencies(this.issue.body ?? '');
       parentUpdater.dependencies = parentDependencies;
+      core.endGroup();
 
+      core.startGroup(`Updating current ${this.issueType}...`);
       await parentUpdater.updateIssue();
+      core.endGroup();
 
-      const dependenciesResult = `- Unresolved Dependencies: ${parentDependencies.length} (${
-        parentDependencies
-          .map((issue) => `#${issue.number}`)
-          .join(' ')
-          .trim() || 'none'
-      })`;
-      const dependentsResult = `- Blocked Dependents: ${parentDependents.length} (${
-        parentDependents
-          .map((issue) => `#${issue.number}`)
-          .join(' ')
-          .trim() || 'none'
-      })`;
+      summary.addRaw(`Unresolved Dependencies: **${parentDependencies.length}**`);
+      summary.addList(parentDependencies.map((issue) => `[#${issue.number}](${issue.html_url})`));
+      summary.addRaw(`Blocked Dependents: **${parentDependents.length}**`);
+      summary.addList(parentDependents.map((issue) => `[#${issue.number}](${issue.html_url})`));
 
       if (parentDependents.length > 0) {
-        core.info(`Evaluating dependents of ${this.issueType} #${this.issue.number}...`);
+        core.info(`Evaluating dependents of current ${this.issueType}.`);
 
         for (const dependent of parentDependents) {
           const dependentUpdater = new IssueUpdater(this.octokit, dependent);
 
+          core.startGroup('Getting Dependents...');
           lastBotComment = await dependentUpdater.findLastBotComment(dependent);
           dependentUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
-          dependentUpdater.dependencies = await this.getDependencies(dependent.body ?? '');
+          core.endGroup();
 
+          core.startGroup('Getting Dependencies...');
+          dependentUpdater.dependencies = await this.getDependencies(dependent.body ?? '');
+          core.endGroup();
+
+          core.startGroup(`Updating dependent #${dependent.number}...`);
           await dependentUpdater.updateIssue();
+          core.endGroup();
         }
       }
 
       if (parentDependencies.length > 0) {
-        core.info(`Evaluating dependencies of ${this.issueType} #${this.issue.number}...`);
+        core.info(`Evaluating dependencies of current ${this.issueType}.`);
 
         for (const dependency of parentDependencies) {
           let dependencyUpdater = new IssueUpdater(this.octokit, dependency);
 
+          core.startGroup('Getting Dependents...');
           lastBotComment = await dependencyUpdater.findLastBotComment(dependency);
           dependencyUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
-          dependencyUpdater.dependencies = await this.getDependencies(dependency.body ?? '');
+          core.endGroup();
 
+          core.startGroup('Getting Dependencies...');
+          dependencyUpdater.dependencies = await this.getDependencies(dependency.body ?? '');
+          core.endGroup();
+
+          core.startGroup(`Updating dependent #${dependency.number}...`);
           await dependencyUpdater.updateIssue();
+          core.endGroup();
         }
 
         core.setFailed(
-          `\nSummary:\n${dependenciesResult}\n${dependentsResult}\n\nPlease resolve the above dependencies before ${this.issueType === 'Pull Request' ? 'merging' : 'closing'}.`
+          `Please resolve the below dependencies before ${this.issueType === 'Pull Request' ? 'merging' : 'closing'}.`
         );
         core.setOutput('has-dependencies', true);
       } else {
         core.notice(
-          `\nSummary:\n${dependenciesResult}\n${dependentsResult}\n\nAll dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge!' : 'close!'}`
+          `All dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge' : 'close'}!`
         );
         core.setOutput('has-dependencies', false);
       }
+
+      await summary.write();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       core.setFailed(`Dependency check failed: ${errorMessage}`);
-    } finally {
-      this.indent = 0;
     }
-  }
-
-  /**
-   * Returns a string consisting of two spaces, repeated this.indent times.
-   * Used to indent log messages to show the call stack.
-   *
-   * @returns {string} A string of indentation characters.
-   */
-  private getIndent(): string {
-    return '  '.repeat(this.indent);
   }
 
   /**
@@ -158,7 +157,7 @@ export class DependencyChecker {
    * @returns {Promise<(APIIssue | APIPullRequest)>} A promise that resolves with the issue data.
    * @throws {Error} If the fetch failed.
    */
-  private async fetchIssue(tag: DependencyTag): Promise<(APIIssue | APIPullRequest)> {
+  private async fetchIssue(tag: DependencyTag): Promise<APIIssue | APIPullRequest> {
     core.debug(`Fetching issue #${tag.issue_number}`);
 
     try {
@@ -188,31 +187,26 @@ export class DependencyChecker {
     const tags = getDependencyTags(commentBody);
     const dependencies: (APIIssue | APIPullRequest)[] = [];
 
-    core.info(`${this.getIndent()}Analyzing ${tags.length} dependencies...`);
-    this.indent++;
+    core.info(`Analyzing ${tags.length} dependencies.`);
 
-    try {
-      for (const tag of tags) {
-        try {
-          const dependency = await this.fetchIssue(tag);
+    for (const tag of tags) {
+      try {
+        const dependency = await this.fetchIssue(tag);
 
-          core.debug(`Dependency #${tag.issue_number} is ${dependency.state}.`);
+        core.debug(`Dependency #${tag.issue_number} is ${dependency.state}.`);
 
-          if (dependency && dependency.state !== 'closed') {
-            dependencies.push(dependency);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-
-          core.debug(`Failed to fetch dependency #${tag.issue_number}: ${errorMessage}`);
-          core.warning(`Failed to fetch dependency #${tag.issue_number}. You'll need to verify it manually.`);
+        if (dependency && dependency.state !== 'closed') {
+          dependencies.push(dependency);
         }
-      }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
-      return dependencies;
-    } finally {
-      this.indent--;
+        core.debug(`Failed to fetch dependency #${tag.issue_number}: ${errorMessage}`);
+        core.warning(`Failed to fetch dependency #${tag.issue_number}. You'll need to verify it manually.`);
+      }
     }
+
+    return dependencies;
   }
 
   /**
@@ -230,31 +224,26 @@ export class DependencyChecker {
     const tags = getDependentsTags(commentBody);
     const dependents: (APIIssue | APIPullRequest)[] = [];
 
-    core.info(`${this.getIndent()}Analyzing ${tags.length} dependents...`);
-    this.indent++;
+    core.info(`Analyzing ${tags.length} dependents.`);
 
-    try {
-      for (const tag of tags) {
-        try {
-          const dependent = await this.fetchIssue(tag);
+    for (const tag of tags) {
+      try {
+        const dependent = await this.fetchIssue(tag);
 
-          core.debug(`Dependent #${tag.issue_number} is ${dependent.state}.`);
+        core.debug(`Dependent #${tag.issue_number} is ${dependent.state}.`);
 
-          if (dependent && dependent.state !== 'closed') {
-            dependents.push(dependent);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-
-          core.debug(`Failed to fetch dependent #${tag.issue_number}: ${errorMessage}`);
-          core.warning(`Failed to fetch dependent #${tag.issue_number}. You'll need to verify it manually.`);
+        if (dependent && dependent.state !== 'closed') {
+          dependents.push(dependent);
         }
-      }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
-      return dependents;
-    } finally {
-      this.indent--;
+        core.debug(`Failed to fetch dependent #${tag.issue_number}: ${errorMessage}`);
+        core.warning(`Failed to fetch dependent #${tag.issue_number}. You'll need to verify it manually.`);
+      }
     }
+
+    return dependents;
   }
 
   /**

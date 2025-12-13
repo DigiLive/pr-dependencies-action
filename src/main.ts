@@ -35,6 +35,12 @@ async function run(): Promise<void> {
       auth: myToken,
       baseUrl: apiUrl,
       throttle: throttlingConfig,
+      log: {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      }
     });
     const checker = new DependencyChecker(octokit);
 

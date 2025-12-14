@@ -29,6 +29,8 @@ class IssueUpdater {
    *
    * @param {Octokit} octokit - An Octokit instance.
    * @param {GitHubIssue} issue - The issue to update.
+   *
+   * @throws {CheckerError} If the GitHub context is invalid.
    */
   constructor(octokit: Octokit, issue: GitHubIssue) {
     this.octokit = octokit;
@@ -43,6 +45,7 @@ class IssueUpdater {
    * While dependencies/dependents are still open, the issue is labeled as blocked.
    *
    * @returns {Promise<void>} - a promise that resolves when the update is complete.
+   * @throws {CheckerError} - when an unexpected error occurs during the update process.
    */
   async updateIssue(): Promise<void> {
     core.info(
@@ -72,6 +75,7 @@ class IssueUpdater {
    *
    * @param {GitHubIssue} issue The issue to find the last bot comment for.
    * @returns {Promise<{body?: string} | undefined>} - a promise that resolves with the last bot comment.
+   * @throws {Error} - when an unexpected error occurs while retrieving the issue's comments.
    */
   async findLastBotComment(issue: GitHubIssue): Promise<{ body?: string } | undefined> {
     try {

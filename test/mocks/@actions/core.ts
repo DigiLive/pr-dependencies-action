@@ -1,6 +1,5 @@
-import type * as originalCore from '@actions/core';
+import * as originalCore from '@actions/core';
 import type { MockInstance } from 'vitest';
-
 
 /**
  * The arguments that each method in `core` can accept.
@@ -17,7 +16,6 @@ type CoreMethodArgs = {
   endGroup: [];
 };
 
-
 /**
  * The mocked methods in `core`.
  */
@@ -25,6 +23,9 @@ type CoreMocks = {
   [K in keyof CoreMethodArgs]: MockInstance<(...args: CoreMethodArgs[K]) => void>;
 } & {
   mockReset: () => void;
+  summary: {
+    write: () => Promise<unknown>;
+  } & Omit<typeof originalCore.summary, 'write'>;
 };
 
 /**
@@ -41,7 +42,6 @@ const createMockMethod = <M extends keyof CoreMethodArgs>(
 ): MockInstance<(...args: CoreMethodArgs[M]) => void> => {
   return vi.fn((...args: CoreMethodArgs[M]) => newCoreBehavior(method, ...args));
 };
-
 
 /**
  * Creates a mock of the entire `@actions/core` module.
@@ -72,6 +72,27 @@ export const createMockCore = (actualCore: typeof originalCore): CoreMocks => {
   mocks.setFailed = createMockMethod('setFailed', newCoreBehavior);
   mocks.startGroup = createMockMethod('startGroup', newCoreBehavior);
   mocks.endGroup = createMockMethod('endGroup', newCoreBehavior);
+
+  // Create a simple summary mock
+  mocks.summary = Object.create(Object.getPrototypeOf(actualCore.summary) as object | null, {
+    ...Object.getOwnPropertyDescriptors(actualCore.summary),
+    _buffer: {
+      value: '',
+      writable: true,
+      enumerable: true,
+    },
+    write: {
+      value: function (this: CoreMocks['summary']) {
+        if (process.env.ACTIONS_STEP_DEBUG === 'true') {
+          console.log('::Summary::\n', this.stringify());
+        }
+        return Promise.resolve(this);
+      },
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    },
+  }) as CoreMocks['summary'];
 
   /**
    * Resets all the mocked methods.

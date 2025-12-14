@@ -67,77 +67,82 @@ export class DependencyChecker {
       const parentUpdater = new IssueUpdater(this.octokit, this.issue);
       const summary = core.summary.addHeading('Dependency Check Summary');
 
-      core.startGroup('Getting Dependents...');
-      let lastBotComment = await parentUpdater.findLastBotComment(this.issue);
-      const parentDependents = await this.getDependents(lastBotComment?.body ?? '');
-      core.endGroup();
+      await this.withGroup('Getting Dependencies...', async () => {
+        parentUpdater.dependencies = await this.getDependencies(this.issue.body ?? '');
+      });
 
-      parentUpdater.dependents = parentDependents;
+      await this.withGroup('Getting Dependents...', async () => {
+        parentUpdater.dependents = await this.getDependents(
+          (await parentUpdater.findLastBotComment(this.issue))?.body ?? ''
+        );
+      });
 
-      core.startGroup('Getting Dependencies...');
-      const parentDependencies = await this.getDependencies(this.issue.body ?? '');
-      parentUpdater.dependencies = parentDependencies;
-      core.endGroup();
+      await this.withGroup(`Updating current ${this.issueType}...`, async () => {
+        await parentUpdater.updateIssue();
+      });
 
-      core.startGroup(`Updating current ${this.issueType}...`);
-      await parentUpdater.updateIssue();
-      core.endGroup();
-
-      summary.addRaw(`Unresolved Dependencies: **${parentDependencies.length}**`);
-      summary.addList(parentDependencies.map((issue) => `[#${issue.number}](${issue.html_url})`));
-      summary.addRaw(`Blocked Dependents: **${parentDependents.length}**`);
-      summary.addList(parentDependents.map((issue) => `[#${issue.number}](${issue.html_url})`));
-
-      if (parentDependents.length > 0) {
-        core.info(`Evaluating dependents of current ${this.issueType}.`);
-
-        for (const dependent of parentDependents) {
-          const dependentUpdater = new IssueUpdater(this.octokit, dependent);
-
-          core.startGroup('Getting Dependents...');
-          lastBotComment = await dependentUpdater.findLastBotComment(dependent);
-          dependentUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
-          core.endGroup();
-
-          core.startGroup('Getting Dependencies...');
-          dependentUpdater.dependencies = await this.getDependencies(dependent.body ?? '');
-          core.endGroup();
-
-          core.startGroup(`Updating dependent #${dependent.number}...`);
-          await dependentUpdater.updateIssue();
-          core.endGroup();
-        }
-      }
-
-      if (parentDependencies.length > 0) {
+      summary.addHeading('Unresolved Dependencies', 2);
+      if (parentUpdater.dependencies.length > 0) {
+        summary.addList(parentUpdater.dependencies.map((issue) => `#${issue.number}`));
+        summary.addRaw('Please resolve the above dependencies, if any');
         core.info(`Evaluating dependencies of current ${this.issueType}.`);
 
-        for (const dependency of parentDependencies) {
+        for (const dependency of parentUpdater.dependencies) {
           let dependencyUpdater = new IssueUpdater(this.octokit, dependency);
 
-          core.startGroup('Getting Dependents...');
-          lastBotComment = await dependencyUpdater.findLastBotComment(dependency);
-          dependencyUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
-          core.endGroup();
+          await this.withGroup('Getting Dependencies...', async () => {
+            dependencyUpdater.dependencies = await this.getDependencies(dependency.body ?? '');
+          });
 
-          core.startGroup('Getting Dependencies...');
-          dependencyUpdater.dependencies = await this.getDependencies(dependency.body ?? '');
-          core.endGroup();
+          await this.withGroup('Getting Dependents...', async () => {
+            dependencyUpdater.dependents = await this.getDependents(
+              (await dependencyUpdater.findLastBotComment(this.issue))?.body ?? '' // FIXME: will be empty at first.
+            );
+          });
 
-          core.startGroup(`Updating dependent #${dependency.number}...`);
-          await dependencyUpdater.updateIssue();
-          core.endGroup();
+          await this.withGroup(`Updating dependency #${dependency.number}...`, async () => {
+            await dependencyUpdater.updateIssue();
+          });
         }
 
         core.setFailed(
-          `Please resolve the below dependencies before ${this.issueType === 'Pull Request' ? 'merging' : 'closing'}.`
+          `Dependencies must be resolved before ${this.issueType === 'Pull Request' ? 'merging' : 'closing'} #${this.issue.number}.`
         );
         core.setOutput('has-dependencies', true);
       } else {
+        summary.addRaw('None');
         core.notice(
-          `All dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge' : 'close'}!`
+          `All dependencies are resolved. Ready to ${this.issueType === 'Pull Request' ? 'merge' : 'close'} ${this.issueType} #${this.issue.number}.`
         );
         core.setOutput('has-dependencies', false);
+      }
+
+      summary.addSeparator();
+      summary.addHeading('Blocked Dependents', 2);
+      if (parentUpdater.dependents.length > 0) {
+        summary.addList(parentUpdater.dependents.map((issue) => `#${issue.number}`));
+        core.info(`Evaluating dependents of current ${this.issueType}.`);
+
+        for (const dependent of parentUpdater.dependents) {
+          const dependentUpdater = new IssueUpdater(this.octokit, dependent);
+
+          await this.withGroup('Getting Dependencies...', async () => {
+            dependentUpdater.dependencies = await this.getDependencies(dependent.body ?? '');
+          });
+
+          await this.withGroup('Getting Dependents...', async () => {
+            dependentUpdater.dependents = await this.getDependents(
+              (await dependentUpdater.findLastBotComment(dependent))?.body ?? '' // FIXME: will be empty at first.
+            );
+          });
+
+          await this.withGroup(`Updating dependent #${dependent.number}...`, async () => {
+            await dependentUpdater.updateIssue();
+          });
+        }
+      } else {
+        summary.addRaw('None');
+        core.notice(`${this.issueType} #${this.issue.number} does not block a dependent.`);
       }
 
       await summary.write();
@@ -261,6 +266,23 @@ export class DependencyChecker {
 
     if (!github.context.payload.pull_request && !github.context.payload.issue) {
       throw new CheckerError("Payload not found. Expected 'pull_request' or 'issue'.");
+    }
+  }
+
+  /**
+   * Executes a given function within a GitHub Actions core group.
+   *
+   * @template T - The type of the return value of the function.
+   * @param {string} name - The name of the group.
+   * @param {() => Promise<T>} fn - The function to execute within the group.
+   * @returns {Promise<T>} - The result of the function.
+   */
+  private async withGroup<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    core.startGroup(name);
+    try {
+      return await fn();
+    } finally {
+      core.endGroup();
     }
   }
 }

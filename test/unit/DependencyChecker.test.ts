@@ -9,11 +9,27 @@ describe('DependencyChecker', () => {
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let checker: DependencyChecker;
 
+  /**
+   * Extracts the issue numbers from a section of the summary.
+   *
+   * @param {string} section - The section of the summary to extract issue numbers from.
+   * @param {string} sectionName - The name of the section to extract issue numbers from.
+   * @return {number[]} An array of issue numbers found in the section.
+   */
+  function getIssueNumbers(section: string, sectionName: string): number[] {
+    const sectionMatch = new RegExp(`<h2>${sectionName}<\\/h2>\\s*<ul>([\\s\\S]*?)<\\/ul>`).exec(section);
+
+    if (!sectionMatch) return [];
+    return [...sectionMatch[1].matchAll(/#(\d+)/g)].map((m) => parseInt(m[1], 10));
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockApi = createMockGithubAPI();
     checker = new DependencyChecker(mockedOctokit);
+
+    core.summary.emptyBuffer();
   });
 
   afterEach(() => {
@@ -27,7 +43,6 @@ describe('DependencyChecker', () => {
 
       await checker.evaluate();
 
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Analyzing 0 dependencies`));
       expect(core.notice).toHaveBeenCalledWith(expect.stringContaining(`All dependencies are resolved.`));
       expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
     };
@@ -56,11 +71,29 @@ describe('DependencyChecker', () => {
 
       await checker.evaluate();
 
-      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Unresolved Dependencies: 1 (#123)'));
+      expect(getIssueNumbers(core.summary.stringify(), 'Unresolved Dependencies')).toEqual([123]);
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Dependencies must be resolved'));
       expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', true);
     });
 
-    it('should handle multiple dependencies', async () => {
+    it('should handle closed dependencies', async () => {
+      github.context.payload.pull_request!.body = 'Depends on: #123';
+
+      mockApi.mockGetIssue('owner', 'repo', 123, {
+        code: 200,
+        data: {
+          state: 'closed',
+        },
+      });
+
+      await checker.evaluate();
+
+      expect(getIssueNumbers(core.summary.stringify(), 'Unresolved Dependencies')).toEqual([]);
+      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('All dependencies are resolved.'));
+      expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
+    });
+
+    it('should handle multiple and mixed dependencies', async () => {
       github.context.payload.pull_request!.body = 'Depends on: #123 #456 #789';
 
       mockApi.mockGetIssue('owner', 'repo', 123, {
@@ -89,25 +122,9 @@ describe('DependencyChecker', () => {
 
       await checker.evaluate();
 
-      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Unresolved Dependencies: 2 (#123 #789)'));
-      expect(core.setFailed).not.toHaveBeenCalledWith(expect.stringContaining('#456'));
+      expect(getIssueNumbers(core.summary.stringify(), 'Unresolved Dependencies')).toEqual([123, 789]);
+      expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining('Dependencies must be resolved'));
       expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', true);
-    });
-
-    it('should handle closed dependencies', async () => {
-      github.context.payload.pull_request!.body = 'Depends on: #123';
-
-      mockApi.mockGetIssue('owner', 'repo', 123, {
-        code: 200,
-        data: {
-          state: 'closed',
-        },
-      });
-
-      await checker.evaluate();
-
-      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('All dependencies are resolved.'));
-      expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
     });
 
     it('should show warning when a dependency fetch fails', async () => {
@@ -120,7 +137,6 @@ describe('DependencyChecker', () => {
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining("Failed to fetch dependency #123. You'll need to verify it manually.")
       );
-      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('All dependencies are resolved.'));
       expect(core.setFailed).not.toHaveBeenCalled();
     });
   });
@@ -138,10 +154,28 @@ describe('DependencyChecker', () => {
 
       await checker.evaluate();
 
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Analyzing 1 dependents'));
+      expect(getIssueNumbers(core.summary.stringify(), 'Blocked Dependents')).toEqual([200]);
+      expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
     });
 
-    it('should handle multiple dependents', async () => {
+    it('should handle closed dependents', async () => {
+      mockBotCommentParams.dependentCount = 1;
+
+      mockApi.mockGetIssue('owner', 'repo', 200, {
+        code: 200,
+        data: {
+          state: 'closed',
+        },
+      });
+
+      await checker.evaluate();
+
+      expect(getIssueNumbers(core.summary.stringify(), 'Blocked Dependents')).toEqual([]);
+      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('does not block a dependent.'));
+      expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
+    });
+
+    it('should handle multiple/mixed dependents', async () => {
       mockBotCommentParams.dependentCount = 3;
 
       mockApi.mockGetIssue('owner', 'repo', 200, {
@@ -170,23 +204,8 @@ describe('DependencyChecker', () => {
 
       await checker.evaluate();
 
-      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('Blocked Dependents: 2 (#200 #202)'));
-      expect(core.notice).not.toHaveBeenCalledWith(expect.stringContaining('#201'));
-    });
-
-    it('should handle closed dependents', async () => {
-      mockBotCommentParams.dependentCount = 1;
-
-      mockApi.mockGetIssue('owner', 'repo', 200, {
-        code: 200,
-        data: {
-          state: 'closed',
-        },
-      });
-
-      await checker.evaluate();
-
-      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('Blocked Dependents: 0 (none)'));
+      expect(getIssueNumbers(core.summary.stringify(), 'Blocked Dependents')).toEqual([200,202]);
+      expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
     });
 
     it('should show warning when a dependent fetch fails', async () => {
@@ -199,7 +218,7 @@ describe('DependencyChecker', () => {
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining("Failed to fetch dependent #200. You'll need to verify it manually.")
       );
-      expect(core.notice).toHaveBeenCalledWith(expect.stringContaining('Blocked Dependents: 0 (none)'));
+      expect(getIssueNumbers(core.summary.stringify(), 'Blocked Dependents')).toEqual([]);
       expect(core.setFailed).not.toHaveBeenCalled();
     });
   });

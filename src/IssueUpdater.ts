@@ -132,8 +132,17 @@ class IssueUpdater {
     const lastBotComment = await this.findLastBotComment(this.issue);
     const newComment = this.createCommentBody();
     const commentChanged = !lastBotComment || lastBotComment.body !== newComment;
-    const labelsToAdd = [...(hasDependencies ? [BLOCKED_LABEL] : []), ...(hasDependents ? [BLOCKING_LABEL] : [])];
-    const labelsToRemove = [...(hasDependencies ? [] : [BLOCKED_LABEL]), ...(hasDependents ? [] : [BLOCKING_LABEL])];
+    const currentLabels = 'labels' in this.issue ? this.issue.labels?.map(label =>
+      typeof label === 'string' ? label : label.name
+    ) || [] : [];
+    const labelsToAdd = [
+      ...(hasDependencies && !currentLabels.includes(BLOCKED_LABEL) ? [BLOCKED_LABEL] : []),
+      ...(hasDependents && !currentLabels.includes(BLOCKING_LABEL) ? [BLOCKING_LABEL] : [])
+    ];
+    const labelsToRemove = [
+      ...(!hasDependencies && currentLabels.includes(BLOCKED_LABEL) ? [BLOCKED_LABEL] : []),
+      ...(!hasDependents && currentLabels.includes(BLOCKING_LABEL) ? [BLOCKING_LABEL] : [])
+    ];
 
     if (!commentChanged) {
       core.info('  The dependencies/dependents have not been changed.');

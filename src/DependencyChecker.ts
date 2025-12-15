@@ -95,9 +95,12 @@ export class DependencyChecker {
           });
 
           await this.withGroup('Getting Dependents...', async () => {
-            dependencyUpdater.dependents = await this.getDependents(
-              (await dependencyUpdater.findLastBotComment(dependency))?.body ?? ''
-            );
+            const lastBotComment = await dependencyUpdater.findLastBotComment(dependency);
+            const existingDependents = await this.getDependents(lastBotComment?.body ?? '');
+
+            dependencyUpdater.dependents = lastBotComment
+              ? existingDependents
+              : [this.issue as APIIssue, ...existingDependents];
           });
 
           await this.withGroup(`Updating dependency #${dependency.number}...`, async () => {
@@ -132,7 +135,7 @@ export class DependencyChecker {
 
           await this.withGroup('Getting Dependents...', async () => {
             dependentUpdater.dependents = await this.getDependents(
-              (await dependentUpdater.findLastBotComment(dependent))?.body ?? '' // FIXME: will be empty at first.
+              (await dependentUpdater.findLastBotComment(dependent))?.body ?? ''
             );
           });
 

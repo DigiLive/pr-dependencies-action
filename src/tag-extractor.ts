@@ -78,37 +78,29 @@ const getRegexPatterns = (): Record<
  * @returns {DependencyTag[]} An array of dependent tags.
  */
 export function getDependentsTags(commentBody: string): DependencyTag[] {
-  const dependentTags: DependencyTag[] = [];
+  const tags: DependencyTag[] = [];
 
-  const dependentsSection = commentBody.match(/the following dependents:\n([\s\S]*?)(?=\n---\n|$)/i);
-  if (!dependentsSection) return [];
-
-  const dependentRegex = /- \[(?:PR|Issue) #(\d+)]\([^)]+\/(\d+)\)/g;
+  const blockMatch = commentBody.match(/the following dependents:\n([\s\S]*?)(?=\n---\n|$)/i);
+  const block = blockMatch?.[0] ?? '';
+  const pattern = /- \[(?:PR|Issue) #(\d+)]\([^)]+\/(\d+)\)/g;
 
   let match;
 
-  while ((match = dependentRegex.exec(dependentsSection[0])) !== null) {
+  core.debug(`Extracting tags from comment: ${block.substring(0, 50)}...`);
+
+  while ((match = pattern.exec(block)) !== null) {
     const issue_number = parseInt(match[1], 10);
 
-    // Skip if the dependency is the same as the current issue/PR.
-    if (issue_number === github.context.issue.number) {
-      // TODO: Decouple from context.
-      core.warning('The Pull Request has itself listed as a dependency.');
-      continue;
-    }
-
-    dependentTags.push({
+    tags.push({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
       issue_number: issue_number,
     });
   }
 
-  const uniqueTags = [
-    ...new Map(dependentTags.map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])).values(),
-  ];
+  const uniqueTags = [...new Map(tags.map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])).values()];
 
-  core.debug(`  Found ${uniqueTags.length} unique dependent tags.`);
+  core.debug(`Found ${uniqueTags.length} unique dependent tags.`);
 
   return uniqueTags;
 }
@@ -126,36 +118,20 @@ export function getDependentsTags(commentBody: string): DependencyTag[] {
  * @returns {DependencyTag[]} An array of DependencyTag objects.
  */
 export function getDependencyTags(commentBody: string): DependencyTag[] {
-  const dependencyBlock = extractDependencyBlock(commentBody);
-
-  const patterns = Object.values(getRegexPatterns());
   const tags: DependencyTag[] = [];
 
-  core.debug(`Extracting tags from text: ${dependencyBlock.substring(0, 50)}...`);
+  const block = extractDependencyBlock(commentBody);
+  const patterns = Object.values(getRegexPatterns());
+
+  core.debug(`Extracting tags from comment: ${block.substring(0, 50)}...`);
 
   for (const { regex, handler } of patterns) {
-    for (const match of dependencyBlock.matchAll(regex)) {
+    for (const match of block.matchAll(regex)) {
       tags.push({ ...handler(match) });
     }
   }
 
-  // De-duplicate and remove current issue
-  const uniqueTags = [
-    ...new Map(
-      tags
-        .filter((tag) => {
-          if (tag.issue_number === github.context.issue.number) {
-            core.warning(
-              `Skipping dependency tag that matches the current issue: ${tag.owner}/${tag.repo}#${tag.issue_number}`
-            );
-            return false;
-          }
-
-          return true;
-        })
-        .map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])
-    ).values(),
-  ];
+  const uniqueTags = [...new Map(tags.map((tag) => [`${tag.owner}/${tag.repo}#${tag.issue_number}`, tag])).values()];
 
   core.debug(`Found ${uniqueTags.length} unique dependency tags.`);
 

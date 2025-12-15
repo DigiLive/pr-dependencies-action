@@ -192,8 +192,14 @@ export class DependencyChecker {
    * @returns {Promise<(APIIssue | APIPullRequest)[]>} A promise that resolves with the list of dependencies.
    */
   private async getDependencies(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
-    const tags = getDependencyTags(commentBody);
     const dependencies: (APIIssue | APIPullRequest)[] = [];
+    const tags = getDependencyTags(commentBody).filter((tag) => {
+      if (tag.issue_number === this.issue.number) {
+        core.warning(`Skipping dependency #${this.issue.number} that matches current ${this.issueType}.`);
+        return false;
+      }
+      return true;
+    });
 
     core.info(`Analyzing ${tags.length} dependencies.`);
 
@@ -229,8 +235,14 @@ export class DependencyChecker {
    * @returns {Promise<(APIIssue | APIPullRequest)[]>} A promise that resolves with the list of dependents.
    */
   private async getDependents(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
-    const tags = getDependentsTags(commentBody);
     const dependents: (APIIssue | APIPullRequest)[] = [];
+    const tags = getDependentsTags(commentBody).filter((tag) => {
+      if (tag.issue_number === this.issue.number) {
+        core.warning(`Skipping dependent #${this.issue.number} that matches current ${this.issueType}.`);
+        return false;
+      }
+      return true;
+    });
 
     core.info(`Analyzing ${tags.length} dependents.`);
 

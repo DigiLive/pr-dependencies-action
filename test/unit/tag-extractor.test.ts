@@ -164,18 +164,6 @@ describe('Tag Extractor', () => {
         expect(result).toEqual([{ owner: 'owner', repo: 'repo', issue_number: 123 }]);
       });
 
-      it('should skip extraction of the current issue', () => {
-        const body = 'Depends on: #123 #999';
-        const result = getDependencyTags(body);
-
-        expect(result).toEqual([{ owner: 'owner', repo: 'repo', issue_number: 123 }]);
-        expect(core.warning).toHaveBeenCalledWith(
-          expect.stringMatching(
-            `Skipping dependency tag that matches the current issue: ${github.context.repo.owner}/${github.context.repo.repo}#${github.context.issue.number}`
-          )
-        );
-      });
-
       it('handles multiple key phrases', () => {
         const body = `
         Depends on: #1
@@ -228,19 +216,6 @@ describe('Tag Extractor', () => {
           { owner: 'owner', repo: 'repo', issue_number: 201 },
         ]);
       });
-    });
-
-    it('should not include a back-reference', () => {
-      const originalIssueNumber = github.context.issue.number;
-      github.context.issue.number = 200;
-
-      try {
-        const result = getDependentsTags(createTestBotComment().body ?? '');
-
-        expect(result).toEqual([{ owner: 'owner', repo: 'repo', issue_number: 201 }]);
-      } finally {
-        github.context.issue.number = originalIssueNumber;
-      }
     });
   });
 });

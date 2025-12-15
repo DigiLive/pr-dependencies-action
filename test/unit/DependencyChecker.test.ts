@@ -127,6 +127,16 @@ describe('DependencyChecker', () => {
       expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', true);
     });
 
+    it('should not include a dependency that references to the current issue', async () => {
+      github.context.payload.pull_request!.body = `Depends on: #${github.context.issue.number}`;
+
+      await checker.evaluate();
+
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining(`Skipping dependency #${github.context.issue.number}`)
+      );
+    });
+
     it('should show warning when a dependency fetch fails', async () => {
       github.context.payload.pull_request!.body = 'Depends on: #123';
 
@@ -208,9 +218,23 @@ describe('DependencyChecker', () => {
       expect(core.setOutput).toHaveBeenCalledWith('has-dependencies', false);
     });
 
-    it('should show warning when a dependent fetch fails', async () => {
+    it('should not include a dependent that references to the current issue', async () => {
+      const originalIssueNumber = github.context.issue.number;
+
+      github.context.payload.pull_request!.number = 200;
       mockBotCommentParams.dependentCount = 1;
 
+      await checker.evaluate();
+
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining(`Skipping dependent #200`)
+      );
+
+      github.context.payload.pull_request!.number = originalIssueNumber;
+    });
+
+    it('should show warning when a dependent fetch fails', async () => {
+      mockBotCommentParams.dependentCount = 1;
       mockApi.mockGetIssue('owner', 'repo', 200, { code: 404 });
 
       await checker.evaluate();

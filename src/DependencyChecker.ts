@@ -134,9 +134,12 @@ export class DependencyChecker {
           });
 
           await this.withGroup('Getting Dependents...', async () => {
-            dependentUpdater.dependents = await this.getDependents(
-              (await dependentUpdater.findLastBotComment(dependent))?.body ?? ''
-            );
+            const lastBotComment = await dependentUpdater.findLastBotComment(dependent);
+            const existingDependents = await this.getDependents(lastBotComment?.body ?? '');
+
+            dependentUpdater.dependents = lastBotComment
+              ? existingDependents
+              : [this.issue as APIIssue, ...existingDependents];
           });
 
           await this.withGroup(`Updating dependent #${dependent.number}...`, async () => {

@@ -96,7 +96,7 @@ export class DependencyChecker {
 
           await this.withGroup('Getting Dependents...', async () => {
             dependencyUpdater.dependents = await this.getDependents(
-              (await dependencyUpdater.findLastBotComment(this.issue))?.body ?? '' // FIXME: will be empty at first.
+              (await dependencyUpdater.findLastBotComment(dependency))?.body ?? ''
             );
           });
 

@@ -42,7 +42,7 @@ ${
 ${dependencies}`
     : `This ${CURRENT_ISSUE_TYPE} has no blocking dependencies.`
 }
----
+
 ## ${dependentCount > 0 ? '⚠️' : '✅'} ${dependentCount > 0 ? 'Blocked Dependents Found' : 'All Dependents Resolved'}
 
 ${
@@ -53,8 +53,7 @@ ${dependents}`
     : `This ${CURRENT_ISSUE_TYPE} blocks no dependents.`
 }
 
----
-*This is an automated message. Please resolve the above dependencies, if any.*
+<sub>*This is an automated message. Please resolve the above dependencies, if any.*</sub>
 <!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->`,
   };
 };

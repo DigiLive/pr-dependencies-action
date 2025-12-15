@@ -170,10 +170,10 @@ class IssueUpdater {
   private createCommentBody(): string {
     let comment = `${IssueUpdater.SIGNATURE}\n`;
 
-    comment += `${this.createDependenciesMessage()}\n---\n${this.createDependentsMessage()}`;
+    comment += `${this.createDependenciesMessage()}\n${this.createDependentsMessage()}\n`;
 
-    comment += '\n---\n*This is an automated message. Please resolve the above dependencies and dependents, if any.*';
-    comment += '\n<!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->';
+    comment += '\n<sub>*This is an automated message. Please resolve the above dependencies and dependents, if any.*</sub>\n';
+    comment += '<!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->';
 
     core.debug(`Generated comment body: ${comment.substring(0, 50)}...`);
 

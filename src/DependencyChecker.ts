@@ -68,13 +68,28 @@ export class DependencyChecker {
       const summary = core.summary.addHeading('Dependency Check Summary');
 
       await this.withGroup('Getting Dependencies...', async () => {
-        parentUpdater.dependencies = await this.getDependencies(this.issue.body ?? '');
+        const dependencies = await this.getDependencies(this.issue.body ?? '');
+
+        parentUpdater.dependencies = dependencies.filter((issue) => {
+          if (issue.number === this.issue.number) {
+            core.warning(`Skipping dependency #${this.issue.number} that matches current ${this.issueType}.`);
+            return false;
+          }
+          return true;
+        });
       });
 
       await this.withGroup('Getting Dependents...', async () => {
-        parentUpdater.dependents = await this.getDependents(
-          (await parentUpdater.findLastBotComment(this.issue))?.body ?? ''
-        );
+        const lastBotComment = await parentUpdater.findLastBotComment(this.issue);
+        const dependents = await this.getDependents(lastBotComment?.body ?? '');
+
+        parentUpdater.dependents = dependents.filter((issue) => {
+          if (issue.number === this.issue.number) {
+            core.warning(`Skipping dependent #${this.issue.number} that matches current ${this.issueType}.`);
+            return false;
+          }
+          return true;
+        });
       });
 
       await this.withGroup(`Updating current ${this.issueType}...`, async () => {
@@ -96,11 +111,9 @@ export class DependencyChecker {
 
           await this.withGroup('Getting Dependents...', async () => {
             const lastBotComment = await dependencyUpdater.findLastBotComment(dependency);
-            const existingDependents = await this.getDependents(lastBotComment?.body ?? '');
+            const dependents = await this.getDependents(lastBotComment?.body ?? '');
 
-            dependencyUpdater.dependents = lastBotComment
-              ? existingDependents
-              : [this.issue as APIIssue, ...existingDependents];
+            dependencyUpdater.dependents = lastBotComment ? dependents : [this.issue as APIIssue, ...dependents];
           });
 
           await this.withGroup(`Updating dependency #${dependency.number}...`, async () => {
@@ -120,7 +133,6 @@ export class DependencyChecker {
         core.setOutput('has-dependencies', false);
       }
 
-      summary.addSeparator();
       summary.addHeading('Blocked Dependents', 2);
       if (parentUpdater.dependents.length > 0) {
         summary.addList(parentUpdater.dependents.map((issue) => `#${issue.number}`));
@@ -135,11 +147,8 @@ export class DependencyChecker {
 
           await this.withGroup('Getting Dependents...', async () => {
             const lastBotComment = await dependentUpdater.findLastBotComment(dependent);
-            const existingDependents = await this.getDependents(lastBotComment?.body ?? '');
 
-            dependentUpdater.dependents = lastBotComment
-              ? existingDependents
-              : [this.issue as APIIssue, ...existingDependents];
+            dependentUpdater.dependents = await this.getDependents(lastBotComment?.body ?? '');
           });
 
           await this.withGroup(`Updating dependent #${dependent.number}...`, async () => {
@@ -196,13 +205,7 @@ export class DependencyChecker {
    */
   private async getDependencies(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
     const dependencies: (APIIssue | APIPullRequest)[] = [];
-    const tags = getDependencyTags(commentBody).filter((tag) => {
-      if (tag.issue_number === this.issue.number) {
-        core.warning(`Skipping dependency #${this.issue.number} that matches current ${this.issueType}.`);
-        return false;
-      }
-      return true;
-    });
+    const tags = getDependencyTags(commentBody);
 
     core.info(`Analyzing ${tags.length} dependencies.`);
 
@@ -239,13 +242,7 @@ export class DependencyChecker {
    */
   private async getDependents(commentBody: string): Promise<(APIIssue | APIPullRequest)[]> {
     const dependents: (APIIssue | APIPullRequest)[] = [];
-    const tags = getDependentsTags(commentBody).filter((tag) => {
-      if (tag.issue_number === this.issue.number) {
-        core.warning(`Skipping dependent #${this.issue.number} that matches current ${this.issueType}.`);
-        return false;
-      }
-      return true;
-    });
+    const tags = getDependentsTags(commentBody);
 
     core.info(`Analyzing ${tags.length} dependents.`);
 

@@ -130,6 +130,14 @@ describe('DependencyChecker', () => {
     it('should not include a dependency that references to the current issue', async () => {
       github.context.payload.pull_request!.body = `Depends on: #${github.context.issue.number}`;
 
+      mockApi.mockGetIssue('owner', 'repo', github.context.issue.number, {
+        code: 200,
+        data: {
+          title: `Issue github.context.issue.number`,
+          state: 'open',
+        },
+      });
+
       await checker.evaluate();
 
       expect(core.warning).toHaveBeenCalledWith(
@@ -223,6 +231,14 @@ describe('DependencyChecker', () => {
 
       github.context.payload.pull_request!.number = 200;
       mockBotCommentParams.dependentCount = 1;
+
+      mockApi.mockGetIssue('owner', 'repo', 200, {
+        code: 200,
+        data: {
+          title: 'Issue 200',
+          state: 'open',
+        },
+      });
 
       await checker.evaluate();
 

@@ -34,7 +34,7 @@ export type APIIssue = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number
  * This type combines the common properties from both sources while maintaining
  * type safety for the union of all possible issue/PR types.
  */
-export type GitHubIssue = (Issue | PullRequest | APIIssue | APIPullRequest) & {
+export type GitHubIssue = (Issue | APIIssue| PullRequest  | APIPullRequest) & {
   number: number;
   title: string;
   state?: string;
@@ -59,6 +59,6 @@ export type ThrottledOctokit = typeof OctoKitCore & ReturnType<typeof throttling
  * @param {GitHubIssue} issue - The GitHub issue to check
  * @returns {boolean} True if the issue is a pull request, false otherwise
  */
-export function isPullRequest(issue: GitHubIssue): issue is GitHubIssue {
-  return 'pull_request' in issue;
+export function isPullRequest(issue: GitHubIssue): issue is PullRequest | APIPullRequest {
+  return 'pull_request' in issue || 'merged_at' in issue;
 }

@@ -2,7 +2,9 @@ name: Dependency Check Self-Test
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, reopened, edited, synchronize, closed]
+  issues:
+    types: [opened, reopened, edited, closed]
 
 jobs:
   self_test:
@@ -10,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: write
 
     steps:

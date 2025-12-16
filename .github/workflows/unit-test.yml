@@ -2,7 +2,10 @@ name: Vitest Tests
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [reopened, synchronize]
+    paths:
+      - 'src/**'
+      - 'package.json'
 
 jobs:
   vitest:

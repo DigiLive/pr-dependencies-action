@@ -1,22 +1,26 @@
 # PR Dependencies Action
 
-A GitHub Action that helps manage and visualize dependencies between pull requests.  
-It parses PR descriptions and comments to identify and track dependent PRs, then updates the PR with status information and helpful links.
+A GitHub Action that helps manage and visualize dependencies between issues and pull requests.  
+It parses descriptions and comments to identify and track issues/PRs for dependency relationships, and then updates them
+with status information and helpful links.
 
 ## Features
 
-- **Dependency Detection**: Automatically identifies PR dependencies from the PR description and comments.
-- **Status Updates**: Updates PR status based on the state of dependent PRs.
+- **Dependency Tracking**: Tracks both dependencies and dependents.
 - **Smart Commenting**: Adds helpful comments with dependency status and navigation links.
-- **Flexible Configuration**: Works with public and private repositories.
+- **Automatic Labeling**: Adds/removes 'blocked' and 'blocking' labels
+- **Flexible Configuration**: Customizable phrases and labels and works with public and private repositories.
 - **Supports Multiple Formats**: Understands various PR/issue reference formats.
 
 ## How It Works
 
-1. Scans the PR description and comments for dependency declarations.
-2. Validates the status of dependent PRs.
-3. Adds helpful comments with navigation links.
-4. Labels the PR with current dependency status.
+When triggered, the action:
+
+- Scans the description and comments for dependency declarations.
+- Identifies both dependencies and dependents.
+- Adds a dedicated comment with the current status.
+- Adds/removes labels based on status.
+- Updates any dependency and dependent similarly.
 
 ## Supported Reference Formats
 
@@ -33,11 +37,13 @@ The action can detect PR/issue references in these formats:
 Add this to a yml file in your `.github/workflows/`:
 
 ```yaml
-name: PR Dependencies
+name: Dependencies Checker
 
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  issues:
+  types: [opened, reopened, edited, closed]
 
 jobs:
   check_dependencies:
@@ -45,14 +51,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read # Not required; Meant for possible future use.
-      pull-requests: read # Required to read other PRs
-      issues: write # Required to add comments and labels
-    
+      pull-requests: write # Required to read and comment on other PRs
+      issues: write # Required to read and comment on other issues
+
     steps:
-      - uses: digilive/pr-dependency-checker@main
+      - uses: digilive/pr-dependency-checker@main # Replace main with a specific version tag (usually the latest release tag).
         with:
           phrases: 'depends on|blocked by' # Pipe separated list of phrases to identify dependency declarations.
-          label: 'blocked' # Label to add to the PR if it has dependencies.
+          blocked_label: 'blocked' # Label to add if an issue/PR is blocked by another.
+          blocking_label: 'blocking' # Label to add if an issue/PR is blocking another.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # To interact with the GitHub API.
 ```
@@ -77,11 +84,10 @@ For a pull request from a forked repository, you must either approve the run of 
 or
 
 - Fine-grained PAT with:
-  - **Repository permissions**:
-    - Contents: Read-only (Optional; For future use)
-    - Metadata: Read-only
-    - Pull requests: Read and write
-    - Issues: Read and write
+    - **Repository permissions**:
+        - Contents: Read-only (Optional; For future use)
+        - Metadata: Read-only
+        - Pull requests: Read and write
 
 ### Token Setup
 
@@ -94,9 +100,9 @@ or
      GITHUB_TOKEN: ${{ secrets.PR_DEPENDENCIES_PAT }}
    ```
 
-## Usage in PRs
+## Usage in Issues/PRs
 
-In your PR description, specify dependencies using the phrases as **configured via the workflow input**:
+In your description, specify dependencies using the phrases as **configured via the workflow input**:
 
 ```markdown
 
@@ -104,7 +110,14 @@ Depends on: #123
 Blocked by: [#456](https://github.com/username/repo/pull/456)
 ```
 
-The action will automatically detect these references and update the PR with the current status of the dependencies.
+The action will automatically detect these references and update the issue/PR with the current status of the
+dependencies and the dependencies themselves.
+
+> [!NOTE]
+> - If an issue's/PR's state changes (E.g.: open, closed), the action will re-evaluate and update the _dependencies_ of
+>   that issue/PR.
+> - If a dependency's state changes, any _dependents_ of that dependency will be updated.
+> - This action does **NOT** update the state of any issue/PR; It only comments on and updates labels.
 
 ## Self-Hosted Runners
 

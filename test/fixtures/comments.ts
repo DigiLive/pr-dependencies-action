@@ -43,7 +43,7 @@ ${dependencies}`
     : `This ${CURRENT_ISSUE_TYPE} has no blocking dependencies.`
 }
 
-## ${dependentCount > 0 ? '⚠️' : '✅'} ${dependentCount > 0 ? 'Blocked Dependents Found' : 'All Dependents Resolved'}
+## ${dependentCount > 0 ? '⚠️' : '✅'} ${dependentCount > 0 ? 'Blocked Dependents Found' : 'No Blocked Dependents'}
 
 ${
   dependentCount > 0

@@ -219,9 +219,9 @@ class IssueUpdater {
     let comment = '';
 
     if (!this.dependents.length) {
-      comment += `## ✅ All Dependents Resolved.\n\nThis ${this.issueType} blocks no dependents.`;
+      comment += `## ✅ No Blocked Dependents.\n\nThis ${this.issueType} is not blocking any dependent.`;
     } else {
-      comment += '## ⚠️ Blocked Dependents Found:\n\n';
+      comment += '## ⚠️ Blocked Dependents Found\n\n';
       comment += `This ${this.issueType} should be ${this.issueType === 'Pull Request' ? 'merged' : 'resolved'}`;
       comment += ' to unblock the following dependents:\n\n';
 

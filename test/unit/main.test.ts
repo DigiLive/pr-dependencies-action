@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import * as core from '@actions/core';
-import { mockEvaluate, MockPRDependencyChecker } from '../mocks/PRDependencyChecker.js';
-
-// Mock the PRDependencyChecker class.
-vi.mock('../../src/PRDependencyChecker', () => ({
-  PRDependencyChecker: MockPRDependencyChecker,
-}));
+import { mockEvaluate } from '../mocks/DependencyChecker.js';
 
 let originalToken: string | undefined;
 

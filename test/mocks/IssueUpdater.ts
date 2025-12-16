@@ -1,29 +1,32 @@
-import * as core from '@actions/core';
-import { IssueData } from '@/types.js';
-import * as github from '@actions/github';
+import { createTestBotComment } from '../fixtures/comments.js';
+import { vi } from 'vitest';
+
+/**
+ * Parameters for generating a mock bot comment.
+ *
+ * @property {number} [dependencyCount=0] - The number of dependencies in the bot comment.
+ * @property {number} [dependentCount=0] - The number of dependents in the bot comment.
+ */
+export const mockBotCommentParams = { dependencyCount: 0, dependentCount: 0 };
+
+/**
+ * A mock implementation of IssueUpdater.findLastBotComment().
+ *
+ * @returns {Promise<{body?: string} | undefined>} A promise that resolves with the last bot comment,
+ *                                                 or undefined if no bot comment is found.
+ */
+export const mockFindLastBotComment = vi.fn(() =>
+  createTestBotComment(mockBotCommentParams.dependencyCount, mockBotCommentParams.dependentCount)
+);
 
 /**
  * A mock implementation of the IssueUpdater class for testing purposes.
- *
- * This class simulates the behavior of updating a pull request with dependency information without making actual
- * API calls.
  */
 export class MockIssueUpdater {
-  /**
-   * Simulates updating a pull request with dependency information.
-   *
-   * @param {IssueData[]} dependencies - Array of dependency issues to be processed.
-   * @returns {void} Outputs a notice message with the number of dependencies.
-   *
-   * @example
-   * const updater = new MockIssueUpdater();
-   * updater.updateIssue(dependencies);
-   */
-  // noinspection JSUnusedGlobalSymbols - Used in tests.
-  updateIssue(dependencies: IssueData[]): void {
-    core.info(`Updating Pull Request #999 with ${dependencies?.length || 0} dependencies.`);
-  }
+  updateIssue = vi.fn().mockResolvedValue(undefined);
+  findLastBotComment = mockFindLastBotComment;
 }
 
-// noinspection JSUnusedGlobalSymbols - Used in tests via vi.mock()
-export { MockIssueUpdater as IssueUpdater };
+vi.mock('@/IssueUpdater.js', () => ({
+  IssueUpdater: MockIssueUpdater,
+}));

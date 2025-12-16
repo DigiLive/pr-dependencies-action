@@ -1,45 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@actions/core';
-import * as github from '@actions/github';
 import { createMockGithubAPI, mockedOctokit } from '../mocks/api-mocks.js';
-import { IssueUpdater } from '@/IssueUpdater.js';
-import { IssueData } from '@/types.js';
-import { IssueComment, MockIssueUpdater } from '../mocks/types.js';
+import { IssueUpdater } from '../../src/IssueUpdater.js';
+import { APIIssue } from '../../src/types.js';
+import { IssueUpdaterInterface } from '../mocks/types.js';
+import { CheckerError } from '../../src/CheckerError.js';
+import { constants } from '../constants/constants.js';
+import { createTestBotComment } from '../fixtures/comments.js';
+import { testDependencies, testIssue } from '../fixtures/issues.js';
+
+const { CHECKER_SIGNATURE, CURRENT_ISSUE_TYPE } = constants;
 
 describe('IssueUpdater', () => {
-  const IS_PR = github.context.eventName === 'pull_request';
-  const CHECKER_SIGNATURE = '<!-- dependency-checker-action -->';
-
-  /**
-   * The object representing a Pull Request's body with dependencies.
-   */
-  const getBodyWithDependencies = (isPR: boolean): IssueComment => ({
-    user: { login: 'github-actions[bot]' },
-    body: `${CHECKER_SIGNATURE}
-## ⚠️ Blocking Dependencies Found
-
-This ${isPR ? 'Pull Request' : 'Issue'} should not be ${isPR ? 'merged' : 'resolved'} until the following dependencies are resolved:
-
-- [PR #123](https://github.com/owner/repo/pull/123): Fix critical bug
-- [Issue #456](https://github.com/owner/repo/issues/456): Add new feature
-
----
-*This is an automated message. Please resolve the above dependencies, if any.*
-<!-- DO NOT EDIT THIS COMMENT! IT WILL BREAK THE DEPENDENCY CHECKER. -->`,
-  });
-
-  /**
-   * Represents a list of dependencies.
-   */
-  const newDependencies: IssueData[] = [
-    {
-      number: 888,
-      title: 'Dependency Pull Request',
-      html_url: 'https://github.com/owner/repo/pull/888',
-      pull_request: {},
-    } as IssueData,
-  ];
-
   let mockApi: ReturnType<typeof createMockGithubAPI>;
   let updater: IssueUpdater;
 
@@ -47,139 +19,337 @@ This ${isPR ? 'Pull Request' : 'Issue'} should not be ${isPR ? 'merged' : 'resol
     vi.clearAllMocks();
 
     mockApi = createMockGithubAPI();
-    updater = new IssueUpdater(mockedOctokit, github.context);
+    updater = new IssueUpdater(mockedOctokit, testIssue);
   });
 
   afterEach(() => {
     mockApi.done();
   });
 
-  describe('createCommentBody', () => {
-    it('should generate correct comment body for no dependencies', () => {
-      const result = (updater as unknown as MockIssueUpdater).createCommentBody([]);
+  /**
+   * Returns a CheckerError and its original error if the promise rejects.
+   *
+   * @template T - The type of the original error (defaults to Error)
+   * @param {Promise<unknown>} promise - the promise to wait for.
+   * @returns {Promise<{error: CheckerError, originalError: T}>} Object containing the caught CheckerError and its original error
+   */
+  async function getCheckerError<T = Error>(
+    promise: Promise<unknown>
+  ): Promise<{ error: CheckerError; originalError: T }> {
+    try {
+      await promise;
 
-      expect(result).toContain('✅ All Dependencies Resolved');
-      expect(result).toContain('no blocking dependencies');
-    });
+      throw new Error(`Promise resolved without throwing a CheckerError.`);
+    } catch (error: unknown) {
+      expect(error instanceof CheckerError, 'Error instanceof CheckerError = false').toBe(true);
 
-    it('should generate correct comment body with dependencies', () => {
-      const result = (updater as unknown as MockIssueUpdater).createCommentBody(newDependencies);
+      const checkerError = error as CheckerError;
+      expect(checkerError.originalError).toBeDefined();
 
-      expect(result).toContain(CHECKER_SIGNATURE);
-      expect(result).toContain('⚠️ Blocking Dependencies Found');
-      expect(result).toContain('PR #888');
+      return {
+        error: checkerError,
+        originalError: checkerError.originalError as T,
+      };
+    }
+  }
+
+  describe('getIssueInfo', () => {
+    it('should return a dependency tag', () => {
+      const thisIssue = (updater as unknown as IssueUpdaterInterface).issue;
+
+      const result = (updater as unknown as IssueUpdaterInterface).getIssueInfo(thisIssue);
+
+      expect(result).toEqual({
+        owner: 'owner',
+        repo: 'repo',
+        issue_number: testIssue.number,
+      });
     });
   });
 
   describe('updateIssue', () => {
-    /**
-     * Wraps a given callback function with a mocked value for the `createCommentBody` method.
-     *
-     * This allows tests to control the output of the `createCommentBody` method, and ensures that the spy is restored
-     * after the test.
-     *
-     * @template T - The return type of the callback function
-     * @param {() => Promise<T>} callback - The function to wrap with the mocked `createCommentBody` method.
-     * @param {string} returnValue - The value to return from the mocked `createCommentBody` method.
-     * @returns {Promise<T>} - The result of the wrapped function.
-     */
-    const withMockedBotComment = async <T>(callback: () => Promise<T>, returnValue: string): Promise<T> => {
-      const spy = vi.spyOn(IssueUpdater.prototype, 'createCommentBody' as never) as MockInstance;
+    it('should result in a successful update', async () => {
+      (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate = vi.fn().mockResolvedValue(undefined);
 
-      spy.mockReturnValue(returnValue);
+      await updater.updateIssue();
 
-      try {
-        return await callback();
-      } finally {
-        spy.mockRestore();
-      }
-    };
-
-    /**
-     * Asserts that the `core.info` function was called with the expected arguments for a changed dependency.
-     *
-     * @param {boolean} isPR - Whether the dependency is a pull request or an issue.
-     */
-    const assertCoreOutputForChanged = (isPR: boolean) => {
-      const type = isPR ? 'Pull Request' : 'Issue';
-
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Creating a comment on ${type}`));
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Updating ${type} #999 successfully finished.`));
-    };
-
-    describe('changed dependencies', () => {
-      /**
-       * Mocks the POST requests for creating a comment and adding a label.
-       */
-      const mockPostRequests = () => {
-        mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 201);
-        mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 200);
-      };
-
-      it('should create bot comment when it does not exist', async () => {
-        // Mock listComments to return empty array (no existing comments) and POST requests.
-        mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [] });
-        mockPostRequests();
-
-        await updater.updateIssue(newDependencies);
-
-        expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have been changed.'));
-        assertCoreOutputForChanged(IS_PR);
-        expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
-      });
-
-      it('should create new bot comment when dependencies differ from last bot comment', async () => {
-        // Mock listComments to return existing bot comment and POST requests.
-        mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
-        mockPostRequests();
-
-        // Call method updateIssue with mocked new bot comment.
-        await withMockedBotComment(() => updater.updateIssue(newDependencies), 'Mocked comment body');
-
-        assertCoreOutputForChanged(IS_PR);
-        expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
-      });
-    });
-
-    it('should create a bot comment if all dependencies are resolved', async () => {
-      // Mock listComments to return existing bot comment.
-      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
-
-      // Mock API responses for creating a comment and removing a label.
-      mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 201);
-      mockApi.mockIssueDeleteRequest('test-owner', 'test-repo', 999, 200);
-
-      await updater.updateIssue([]);
-
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('All dependencies have been resolved.'));
-      assertCoreOutputForChanged(IS_PR);
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Removing blocked label'));
-    });
-
-    it('should not create a new comment when the dependencies have not been changed', async () => {
-      // Mock listComments to return an existing bot comment and POST requests.
-      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 200, data: [getBodyWithDependencies(IS_PR)] });
-      mockApi.mockIssuePostRequest('test-owner', 'test-repo', 999, 200);
-
-      // Call method updateIssue with mocked new bot comment.
-      await withMockedBotComment(() => updater.updateIssue(newDependencies), getBodyWithDependencies(IS_PR).body ?? '');
-
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies have not been changed.'));
-      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('Adding blocked label'));
       expect(core.info).toHaveBeenCalledWith(
-        expect.stringContaining('Updating Pull Request #999 successfully finished.')
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} with 0 dependencies. and 0 dependents.`)
+      );
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} successfully finished.`)
+      );
+    });
+
+    it('should result in a failed update', async () => {
+      (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate = vi
+        .fn()
+        .mockRejectedValue(new Error('Mock Error'));
+
+      const { error, originalError } = await getCheckerError<CheckerError>(updater.updateIssue());
+
+      expect(error.message).toBe(`Error updating ${CURRENT_ISSUE_TYPE} #${testIssue.number}.`);
+      expect(originalError.message).toBe(`Mock Error`);
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} with 0 dependencies. and 0 dependents.`)
+      );
+      expect(core.info).not.toHaveBeenCalledWith(
+        expect.stringContaining(`Updating Pull Request #${testIssue.number} successfully finished.`)
       );
     });
   });
 
-  describe('error handling', () => {
-    it('should log error when an API call fails', async () => {
-      // Mock listComments to result in a fail.
-      mockApi.mockListComments('test-owner', 'test-repo', 999, { code: 404 });
+  describe('handleDependencyUpdate', () => {
+    let mockUpdater: IssueUpdaterInterface;
 
-      await expect(updater.updateIssue(newDependencies)).rejects.toThrow();
+    beforeEach(() => {
+      // Default mocks
+      mockUpdater = updater as unknown as IssueUpdaterInterface;
+      mockUpdater.findLastBotComment = vi.fn().mockResolvedValue(undefined);
+      mockUpdater.createCommentBody = vi.fn().mockResolvedValue(undefined);
+      mockUpdater.postComment = vi.fn().mockResolvedValue(undefined);
+      mockUpdater.addLabels = vi.fn().mockResolvedValue(undefined);
+      mockUpdater.removeLabels = vi.fn().mockResolvedValue(undefined);
+    });
 
-      expect(core.error).toHaveBeenCalledWith(expect.stringMatching('Error updating Pull Request.'));
+    afterEach(() => {
+      vi.resetAllMocks();
+    });
+
+    it('should log no changes', async () => {
+      mockUpdater.findLastBotComment = vi.fn().mockResolvedValue('Mock Comment');
+      mockUpdater.createCommentBody = vi.fn().mockResolvedValue('Mock Comment');
+
+      updater.dependencies = testDependencies;
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies/dependents have been changed.'));
+    });
+
+    it('should log changes', async () => {
+      updater.dependencies = testDependencies;
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining('The dependencies/dependents have been changed.'));
+    });
+
+    it('should log all resolved', async () => {
+      await (updater as unknown as IssueUpdaterInterface).handleDependencyUpdate();
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining('All dependencies/dependents have been resolved.')
+      );
+    });
+  });
+
+  describe('findLastBotComment', () => {
+    let thisIssue: APIIssue;
+
+    beforeEach(() => {
+      thisIssue = (updater as unknown as IssueUpdaterInterface).issue;
+    });
+
+    it('should return no bot-comment', async () => {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
+        code: 200,
+        data: [],
+      });
+
+      const result = await (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue);
+
+      expect(result).toBe(undefined);
+    });
+
+    it('should return a new bot-comment', async () => {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
+        code: 200,
+        data: [createTestBotComment()],
+      });
+
+      const result = await (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue);
+
+      expect(result).toStrictEqual(createTestBotComment());
+    });
+
+    it('should throw an error', async () => {
+      mockApi.mockListComments('owner', 'repo', testIssue.number, {
+        code: 500,
+        data: [],
+      });
+
+      const { error, originalError } = await getCheckerError<CheckerError>(
+        (updater as unknown as IssueUpdaterInterface).findLastBotComment(thisIssue)
+      );
+
+      expect(error.message).toBe(`Failed to fetch comments for ${CURRENT_ISSUE_TYPE} #${testIssue.number}`);
+      // Assert for the constructor's name because instanceOf is unreliable in this environment.
+      expect(originalError.constructor.name).toBe('RequestError');
+    });
+  });
+
+  describe('createCommentBody', () => {
+    it('should generate comment body for no dependencies', () => {
+      const result = (updater as unknown as IssueUpdaterInterface).createCommentBody();
+
+      expect(result).toContain('✅ All Dependencies Resolved');
+      expect(result).toContain('✅ All Dependents Resolved');
+    });
+
+    const testCases = [
+      {
+        name: 'dependencies',
+        property: 'dependencies' as const,
+        expectedText: '⚠️ Blocking Dependencies Found',
+      },
+      {
+        name: 'dependents',
+        property: 'dependents' as const,
+        expectedText: '⚠️ Blocked Dependents Found',
+      },
+    ];
+
+    test.each(testCases)('should generate comment body with $name', ({ property, expectedText }) => {
+      updater[property] = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createCommentBody();
+
+      expect(result).toContain(CHECKER_SIGNATURE);
+      expect(result).toContain(expectedText);
+      expect(result).toContain(`PR #${testDependencies[0].number}`);
+    });
+  });
+
+  describe('createDependenciesMessage', () => {
+    it('should generate a resolved message', () => {
+      const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
+      expect(result).toContain('All Dependencies Resolved.');
+    });
+
+    it('should generate a dependencies list', () => {
+      updater.dependencies = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
+
+      expect(result).toContain('Blocking Dependencies Found:');
+      testDependencies.forEach((dependency) => {
+        const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
+        expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);
+      });
+    });
+  });
+
+  describe('createDependentsMessage', () => {
+    it('should generate a resolved message', () => {
+      const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
+      expect(result).toContain('All Dependents Resolved.');
+    });
+
+    it('should generate a dependents list', () => {
+      updater.dependents = testDependencies;
+      const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
+
+      expect(result).toContain('Blocked Dependents Found:');
+      testDependencies.forEach((dependency) => {
+        const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
+        expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);
+      });
+    });
+  });
+
+  describe('postComment', () => {
+    it('should successfully post a comment', async () => {
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).postComment('Mock Comment');
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Posting a comment to ${CURRENT_ISSUE_TYPE} #${testIssue.number}...`)
+      );
+    });
+
+    it('should throw an error', async () => {
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 500);
+
+      const { error, originalError } = await getCheckerError<CheckerError>(
+        (updater as unknown as IssueUpdaterInterface).postComment('Mock Comment')
+      );
+
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(`Posting a comment to ${CURRENT_ISSUE_TYPE} #${testIssue.number}...`)
+      );
+      expect(error.message).toBe(`Failed to post a comment on ${CURRENT_ISSUE_TYPE} #${testIssue.number}.`);
+      // Assert for the constructor's name because instanceOf is unreliable in this environment.
+      expect(originalError.constructor.name).toBe('RequestError');
+    });
+  });
+
+  describe('addLabels', () => {
+    it('should successfully add labels', async () => {
+      const labels = ['blocked'];
+
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).addLabels(labels);
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Adding labels: ${labels.join(', ')}`));
+    });
+
+    it('should throw an error', async () => {
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
+      const labels = ['blocked'];
+
+      mockApi.mockIssuePostRequest('owner', 'repo', testIssue.number, 500);
+
+      await expect(
+        (testUpdater as unknown as { addLabels: (labels: string[]) => Promise<void> }).addLabels(labels)
+      ).rejects.toThrow(`Failed to add ${labels.length} label(s)`);
+    });
+  });
+
+  describe('removeLabels', () => {
+    it('should successfully remove labels', async () => {
+      const labels = ['blocked'];
+
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 200);
+
+      await (updater as unknown as IssueUpdaterInterface).removeLabels(labels);
+
+      expect(core.info).toHaveBeenCalledWith(expect.stringContaining(`Removing labels: ${labels.join(', ')}`));
+    });
+
+    it('should throw an error', async () => {
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
+      const labels = ['blocked'];
+
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 500);
+
+      await expect(
+        (testUpdater as unknown as { removeLabels: (labels: string[]) => Promise<void> }).removeLabels(labels)
+      ).rejects.toThrow(`Failed to remove 1 label(s): ${labels.join(', ')}`);
+    });
+
+    it('should not throw if removing a non-existing label', async () => {
+      const testUpdater = new IssueUpdater(mockedOctokit, testIssue);
+      const labels = ['blocked'];
+
+      mockApi.mockIssueDeleteRequest('owner', 'repo', testIssue.number, 404);
+
+      await expect(
+        (testUpdater as unknown as { removeLabels: (labels: string[]) => Promise<void> }).removeLabels(labels)
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    describe('with issues event type', () => {
+      it('should use correct type in messages', () => {
+        const { pull_request: _, ...issueWithoutPR } = testIssue;
+
+        const result = (
+          new IssueUpdater(mockedOctokit, issueWithoutPR) as unknown as IssueUpdaterInterface
+        ).createDependenciesMessage();
+
+        expect(result).toContain('This Issue has no blocking dependencies.');
+      });
     });
   });
 });

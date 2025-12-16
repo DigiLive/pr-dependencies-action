@@ -28,6 +28,7 @@ vi.mock('@actions/core', async () => {
   return mockModule.createMockCore(actualCore);
 });
 
+
 /**
  * Mocks the @actions/github module for testing purposes.
  *

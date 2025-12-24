@@ -99,7 +99,7 @@ export class DependencyChecker {
       summary.addHeading('Unresolved Dependencies', 2);
       if (parentUpdater.dependencies.length > 0) {
         this.addIssueList(parentUpdater.dependencies);
-        summary.addRaw('Please resolve the above dependencies, if any');
+        summary.addRaw('Please resolve the above dependencies, if any', true);
         core.info(`Evaluating dependencies of current ${this.issueType}.`);
 
         for (const dependency of parentUpdater.dependencies) {
@@ -174,20 +174,22 @@ export class DependencyChecker {
    *
    * @param {GitHubIssue[]} issues - Array of issues.
    * @param {boolean} ordered - If true, renders as an ordered list. Defaults to false.
+   *
+   * @returns {typeof core.summary} - The summary object.
    */
-  private addIssueList(issues: GitHubIssue[], ordered = false) {
+  private addIssueList(issues: GitHubIssue[], ordered: boolean = false):typeof core.summary {
     if (!issues || issues.length === 0) {
-      return core.summary.addEOL();
+      return core.summary.addEOL().addEOL();
     }
 
-    const markdownList = issues
-      .map((issue, index) => {
-        const prefix = ordered ? `${index + 1}.` : '-';
-        return `${prefix} [#${issue.number}](${issue.html_url})`;
-      })
+    const listTag = ordered ? 'ol' : 'ul';
+    const listItems = issues
+      .map(issue => `  <li><a href="${issue.html_url}">#${issue.number}</a></li>`)
       .join('\n');
 
-    return core.summary.addRaw(markdownList).addEOL();
+    const htmlBlob = `<${listTag}>\n${listItems}\n</${listTag}>`;
+
+    return core.summary.addRaw(htmlBlob, true).addEOL();
   }
 
   /**

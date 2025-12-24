@@ -192,20 +192,20 @@ describe('IssueUpdater', () => {
     it('should generate comment body for no dependencies', () => {
       const result = (updater as unknown as IssueUpdaterInterface).createCommentBody();
 
-      expect(result).toContain('✅ All Dependencies Resolved');
-      expect(result).toContain('✅ All Dependents Resolved');
+      expect(result).toContain('All Dependencies Resolved');
+      expect(result).toContain('No Blocked Dependents');
     });
 
     const testCases = [
       {
         name: 'dependencies',
         property: 'dependencies' as const,
-        expectedText: '⚠️ Blocking Dependencies Found',
+        expectedText: 'Blocking Dependencies Found',
       },
       {
         name: 'dependents',
         property: 'dependents' as const,
-        expectedText: '⚠️ Blocked Dependents Found',
+        expectedText: 'Blocked Dependents Found',
       },
     ];
 
@@ -222,14 +222,14 @@ describe('IssueUpdater', () => {
   describe('createDependenciesMessage', () => {
     it('should generate a resolved message', () => {
       const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
-      expect(result).toContain('All Dependencies Resolved.');
+      expect(result).toContain('All Dependencies Resolved');
     });
 
     it('should generate a dependencies list', () => {
       updater.dependencies = testDependencies;
       const result = (updater as unknown as IssueUpdaterInterface).createDependenciesMessage();
 
-      expect(result).toContain('Blocking Dependencies Found:');
+      expect(result).toContain('Blocking Dependencies Found');
       testDependencies.forEach((dependency) => {
         const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
         expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);
@@ -240,14 +240,14 @@ describe('IssueUpdater', () => {
   describe('createDependentsMessage', () => {
     it('should generate a resolved message', () => {
       const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
-      expect(result).toContain('All Dependents Resolved.');
+      expect(result).toContain('No Blocked Dependents');
     });
 
     it('should generate a dependents list', () => {
       updater.dependents = testDependencies;
       const result = (updater as unknown as IssueUpdaterInterface).createDependentsMessage();
 
-      expect(result).toContain('Blocked Dependents Found:');
+      expect(result).toContain('Blocked Dependents Found');
       testDependencies.forEach((dependency) => {
         const issueType = 'pull_request' in dependency ? 'PR' : 'Issue';
         expect(result).toContain(`[${issueType} #${dependency.number}](${dependency.html_url}) – ${dependency.title}`);

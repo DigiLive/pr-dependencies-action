@@ -1,17 +1,19 @@
 import { Endpoints } from '@octokit/types';
 import { Octokit as OctoKitCore } from '@octokit/rest';
+import { Issue, PullRequest } from '@octokit/webhooks-types';
 import { throttling } from '@octokit/plugin-throttling';
 
 export interface DependencyTag {
   owner: string;
   repo: string;
-  number: number;
+  issue_number: number;
+  [key: string]: unknown;
 }
 
 /**
  * The exact TypeScript type for the Pull Request object returned by octokit.rest.pulls.get().
  */
-export type PullRequestData = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}']['response']['data'];
+export type APIPullRequest = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}']['response']['data'];
 
 /**
  * The exact TypeScript type for the Issue object returned by octokit.rest.issues.get().
@@ -22,12 +24,24 @@ export type PullRequestData = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_n
  * Be aware that the id of a pull request returned from "Issues" endpoints will be an issue id.
  * To find out the pull request id, use the "List pull requests" endpoint.
  */
-export type IssueData = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}']['response']['data'];
+export type APIIssue = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}']['response']['data'];
 
-export type PullRequestFromIssueData = IssueData & {
-  // When it's a PR, the pull_request property is guaranteed to be an object.
-  // We use this to narrow the type.
-  pull_request: NonNullable<IssueData['pull_request']>;
+/**
+ * Represents a GitHub issue or pull request that can come from either:
+ * - Webhook events (@octokit/webhooks-types)
+ * - API responses (@octokit/types)
+ *
+ * This type combines the common properties from both sources while maintaining
+ * type safety for the union of all possible issue/PR types.
+ */
+export type GitHubIssue = (Issue | APIIssue| PullRequest  | APIPullRequest) & {
+  number: number;
+  title: string;
+  state?: string;
+  html_url: string;
+  user: { login: string } | null;
+  pull_request?: unknown;
+  repository?: { owner: { login: string }; name: string };
 };
 
 /**
@@ -39,11 +53,12 @@ export type PullRequestFromIssueData = IssueData & {
 export type ThrottledOctokit = typeof OctoKitCore & ReturnType<typeof throttling>;
 
 /**
- * Type Guard: Checks if an IssueData object is actually a Pull Request.
+ * Type guard that checks if a GitHub issue is actually a pull request.
+ * Works with both webhook and API issue types.
  *
- * @param {IssueData} issue The object returned from octokit.rest.issues.get().
- * @returns True if the item has the necessary pull_request properties defined.
+ * @param {GitHubIssue} issue - The GitHub issue to check
+ * @returns {boolean} True if the issue is a pull request, false otherwise
  */
-export function isPullRequest(issue: IssueData): issue is PullRequestFromIssueData {
-  return issue.pull_request !== null && issue.pull_request !== undefined;
+export function isPullRequest(issue: GitHubIssue): issue is PullRequest | APIPullRequest {
+  return 'pull_request' in issue || 'merged_at' in issue;
 }

@@ -1,27 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import * as core from '@actions/core';
-import { mockEvaluate, mockPRDependencyChecker } from '../mocks/PRDependencyChecker.js';
-
-// Mock the PRDependencyChecker class.
-vi.mock('../../src/PRDependencyChecker.js', () => ({
-  PRDependencyChecker: mockPRDependencyChecker,
-}));
+import { mockEvaluate } from '../mocks/DependencyChecker.js';
 
 let originalToken: string | undefined;
 
 describe('main', () => {
-  const coreSpies = ['notice', 'info', 'setFailed', 'error'] as const;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    coreSpies.forEach((fnName) => {
-      vi.spyOn(core, fnName);
-    });
+    vi.resetModules();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.resetModules();
   });
 
   describe('successful execution', () => {

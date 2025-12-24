@@ -23,16 +23,9 @@
     "sourceMap": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "baseUrl": "."
   },
 
   "include": ["src/**/*"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "eslint.config.mjs",
-  ]
+  "exclude": ["node_modules", "dist", "eslint.config.mjs"]
 }

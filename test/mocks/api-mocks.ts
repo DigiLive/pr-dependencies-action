@@ -1,8 +1,8 @@
 import nock from 'nock';
 import { Octokit as OctoKitCore, Octokit } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';
-import { throttlingConfig } from '@/config.js';
-import { ThrottledOctokit } from '@/types.js';
+import { throttlingConfig } from '../../src/config.js';
+import { ThrottledOctokit } from '../../src/types.js';
 import { MockGitHubAPI, MockIssueResponse, MockListCommentsResponse, MockPRResponse } from './types.js';
 
 const throttledOctokit: ThrottledOctokit = OctoKitCore.plugin(throttling);
@@ -36,8 +36,9 @@ const DEFAULT_HEADERS = {
  * - `done`: Verifies that all expected HTTP requests were made and cleans up the nock scope.
  */
 export const createMockGithubAPI = (): MockGitHubAPI => {
-  nock.disableNetConnect();
   const scope = nock(apiUrl).defaultReplyHeaders(DEFAULT_HEADERS);
+
+  nock.disableNetConnect();
 
   return {
     /**

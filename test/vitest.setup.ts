@@ -2,12 +2,10 @@ import type * as CoreModule from '@actions/core';
 import { mockContext } from './mocks/@actions/github.js';
 
 // Set default environment variables if not running in GitHub Actions
-if (!process.env.GITHUB_ACTIONS) {
-  process.env.GITHUB_SERVER_URL ||= 'https://github.com';
-  process.env.GITHUB_API_URL ||= 'https://api.github.com';
-  process.env.GITHUB_TOKEN ||= 'test_token';
-  process.env.DEBUG_TEST ||= 'false';
-}
+process.env.GITHUB_SERVER_URL ||= 'https://github.com';
+process.env.GITHUB_API_URL ||= 'https://api.github.com';
+process.env.GITHUB_TOKEN ||= 'test_token';
+process.env.ACTIONS_STEP_DEBUG ||= 'false';
 
 // Set global mocks.
 
@@ -29,6 +27,7 @@ vi.mock('@actions/core', async () => {
   // This breaks the circular dependency and returns the final mock object.
   return mockModule.createMockCore(actualCore);
 });
+
 
 /**
  * Mocks the @actions/github module for testing purposes.

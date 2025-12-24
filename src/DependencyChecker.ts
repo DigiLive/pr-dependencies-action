@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { IssueUpdater } from './IssueUpdater.js';
 import { getDependencyTags, getDependentsTags } from './tag-extractor.js';
-import { APIIssue, APIPullRequest, DependencyTag } from './types.js';
+import { APIIssue, APIPullRequest, DependencyTag, GitHubIssue } from './types.js';
 import { Octokit } from '@octokit/rest';
 import { CheckerError } from './CheckerError.js';
 import { Issue, PullRequest } from '@octokit/webhooks-types';
@@ -98,7 +98,7 @@ export class DependencyChecker {
 
       summary.addHeading('Unresolved Dependencies', 2);
       if (parentUpdater.dependencies.length > 0) {
-        summary.addList(parentUpdater.dependencies.map((issue) => `#${issue.number}`));
+        this.addIssueList(parentUpdater.dependencies);
         summary.addRaw('Please resolve the above dependencies, if any');
         core.info(`Evaluating dependencies of current ${this.issueType}.`);
 
@@ -135,7 +135,7 @@ export class DependencyChecker {
 
       summary.addHeading('Blocked Dependents', 2);
       if (parentUpdater.dependents.length > 0) {
-        summary.addList(parentUpdater.dependents.map((issue) => `#${issue.number}`));
+        this.addIssueList(parentUpdater.dependents);
         core.info(`Evaluating dependents of current ${this.issueType}.`);
 
         for (const dependent of parentUpdater.dependents) {
@@ -165,6 +165,29 @@ export class DependencyChecker {
       const errorMessage = error instanceof Error ? error.message : String(error);
       core.setFailed(`Dependency check failed: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Adds a list of GitHub issues to the summary with clickable Markdown links.
+   *
+   * Chainable to core.summary() methods.
+   *
+   * @param {GitHubIssue[]} issues - Array of issues.
+   * @param {boolean} ordered - If true, renders as an ordered list. Defaults to false.
+   */
+  private addIssueList(issues: GitHubIssue[], ordered = false) {
+    if (!issues || issues.length === 0) {
+      return core.summary.addEOL();
+    }
+
+    const markdownList = issues
+      .map((issue, index) => {
+        const prefix = ordered ? `${index + 1}.` : '-';
+        return `${prefix} [#${issue.number}](${issue.html_url})`;
+      })
+      .join('\n');
+
+    return core.summary.addRaw(markdownList).addEOL();
   }
 
   /**
@@ -283,7 +306,6 @@ export class DependencyChecker {
       throw new CheckerError("Payload not found. Expected 'pull_request' or 'issue'.");
     }
   }
-
   /**
    * Executes a given function within a GitHub Actions core group.
    *
